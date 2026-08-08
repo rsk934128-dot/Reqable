@@ -1,0 +1,172 @@
+{
+  "entities": {
+    "Collection": {
+      "title": "API Collection",
+      "description": "API collection containing endpoint requests",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "userId": {
+          "type": "string"
+        },
+        "requests": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "userId"
+      ]
+    },
+    "TrafficRule": {
+      "title": "Mock / Rewrite Rule",
+      "description": "Rule for proxy mocking, intercepting, or rewriting requests",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "userId": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "type": {
+          "type": "string"
+        },
+        "matchUrl": {
+          "type": "string"
+        },
+        "targetUrl": {
+          "type": "string"
+        },
+        "statusCode": {
+          "type": "number"
+        },
+        "responseBody": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "userId",
+        "enabled",
+        "type",
+        "matchUrl"
+      ]
+    },
+    "TrafficItem": {
+      "title": "Captured Traffic Item",
+      "description": "Intercepted or captured HTTP request/response log item",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "responseStatus": {
+          "type": "number"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "sizeBytes": {
+          "type": "number"
+        },
+        "clientIp": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "timestamp",
+        "method",
+        "url",
+        "userId"
+      ]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User account information and preferences",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "photoURL": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uid",
+        "email"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/collections/{collectionId}": {
+      "schema": "Collection",
+      "description": "User API request collections"
+    },
+    "/users/{userId}/rules/{ruleId}": {
+      "schema": "TrafficRule",
+      "description": "User proxy rules and mocks"
+    },
+    "/users/{userId}/traffic/{trafficId}": {
+      "schema": "TrafficItem",
+      "description": "User captured network traffic logs"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document"
+    }
+  }
+}

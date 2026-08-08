@@ -1,0 +1,6 @@
+{
+  "name": "Reqable",
+  "description": "All-in-one API debugging and testing platform with traffic capture, API client, collections, environments, mock rules, MCP support, and Google Drive cloud sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
