@@ -1,15 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { ApiTestingTab } from './components/ApiTestingTab';
 import { ApiDebuggingTab } from './components/ApiDebuggingTab';
 import { RulesEngineTab } from './components/RulesEngineTab';
 import { McpServerTab } from './components/McpServerTab';
 import { WebHubTab } from './components/WebHubTab';
+import { ApiAuditLogTab } from './components/ApiAuditLogTab';
+import { GmailTab } from './components/GmailTab';
+import { SecurityScannerTab } from './components/SecurityScannerTab';
+import { GoogleMeetTab } from './components/GoogleMeetTab';
 import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
 import { AiCopilotDrawer } from './components/AiCopilotDrawer';
 import { PerformanceWidget } from './components/PerformanceWidget';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { ReadmeModal } from './components/ReadmeModal';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { CheckCircle2, Database, Cloud } from 'lucide-react';
 
 import { INITIAL_COLLECTIONS, INITIAL_ENVIRONMENTS, INITIAL_RULES, INITIAL_TRAFFIC } from './data/initialData';
 import { ApiRequest, ApiResponse, Collection, Environment, TrafficItem, TrafficRule } from './types/reqable';
@@ -21,7 +27,7 @@ import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
 function ReqableApp() {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<'debugging' | 'testing' | 'rules' | 'mcp' | 'drive' | 'webhub'>('debugging');
+  const [activeTab, setActiveTab] = useState<'debugging' | 'testing' | 'rules' | 'mcp' | 'drive' | 'webhub' | 'auditlog' | 'gmail' | 'security' | 'meet'>('debugging');
   const [collections, setCollections] = useState<Collection[]>(INITIAL_COLLECTIONS);
   const [environments, setEnvironments] = useState<Environment[]>(INITIAL_ENVIRONMENTS);
   const [selectedEnvId, setSelectedEnvId] = useState<string>(INITIAL_ENVIRONMENTS[0]?.id || 'none');
@@ -43,11 +49,25 @@ function ReqableApp() {
   const [lastTrafficSaveTime, setLastTrafficSaveTime] = useState<Date | null>(null);
   const savedTrafficIdsRef = React.useRef<Set<string>>(new Set());
 
+  const [firestoreSyncStatus, setFirestoreSyncStatus] = useState<'synced' | 'saving' | 'idle'>('synced');
+  const [syncToast, setSyncToast] = useState<{ message: string; timestamp: Date } | null>(null);
+
+  const notifySyncSuccess = useCallback((message: string) => {
+    setFirestoreSyncStatus('synced');
+    const now = new Date();
+    setLastTrafficSaveTime(now);
+    setSyncToast({ message, timestamp: now });
+    setTimeout(() => {
+      setSyncToast((curr) => (curr?.timestamp === now ? null : curr));
+    }, 3800);
+  }, []);
+
   const [interceptorActive, setInterceptorActive] = useState(true);
   const [isDriveConnected, setIsDriveConnected] = useState(false);
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
   const [isAiCopilotOpen, setIsAiCopilotOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+  const [isReadmeModalOpen, setIsReadmeModalOpen] = useState(false);
   const [selectedTrafficForAi, setSelectedTrafficForAi] = useState<TrafficItem | null>(null);
 
   // Register Global Keyboard Shortcuts across all views
@@ -90,6 +110,30 @@ function ReqableApp() {
       allowInInput: true,
       handler: () => setActiveTab('webhub'),
       description: 'Web Hub',
+      category: 'Navigation',
+    },
+    {
+      key: '6',
+      alt: true,
+      allowInInput: true,
+      handler: () => setActiveTab('auditlog'),
+      description: 'API Audit Log',
+      category: 'Navigation',
+    },
+    {
+      key: '7',
+      alt: true,
+      allowInInput: true,
+      handler: () => setActiveTab('gmail'),
+      description: 'Gmail Workspace Integration',
+      category: 'Navigation',
+    },
+    {
+      key: '8',
+      alt: true,
+      allowInInput: true,
+      handler: () => setActiveTab('security'),
+      description: 'Security Scanner',
       category: 'Navigation',
     },
     {
@@ -244,6 +288,7 @@ function ReqableApp() {
       if (unsavedItems.length === 0) return;
 
       setIsTrafficSaving(true);
+      setFirestoreSyncStatus('saving');
       try {
         await Promise.all(
           unsavedItems.map(async (item) => {
@@ -259,10 +304,11 @@ function ReqableApp() {
             savedTrafficIdsRef.current.add(item.id);
           })
         );
-        setLastTrafficSaveTime(new Date());
+        notifySyncSuccess(`Saved ${unsavedItems.length} traffic item${unsavedItems.length > 1 ? 's' : ''} to Firestore`);
       } catch (err) {
         console.error('Failed to auto-save traffic to Firestore:', err);
         handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/traffic`);
+        setFirestoreSyncStatus('synced');
       } finally {
         setIsTrafficSaving(false);
       }
@@ -433,7 +479,9 @@ function ReqableApp() {
             setDoc(doc(db, 'users', user.uid, 'collections', col.id), {
               ...newCol,
               userId: user.uid,
-            }).catch((err) => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/collections/${col.id}`));
+            })
+              .then(() => notifySyncSuccess('Replayed request saved to Firestore'))
+              .catch((err) => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/collections/${col.id}`));
           }
           return newCol;
         }
@@ -477,7 +525,9 @@ function ReqableApp() {
         setDoc(doc(db, 'users', user.uid, 'rules', newRule.id), {
           ...newRule,
           userId: user.uid,
-        }).catch((err) => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/rules/${newRule.id}`));
+        })
+          .then(() => notifySyncSuccess(`Rule "${newRule.name}" saved to Firestore`))
+          .catch((err) => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/rules/${newRule.id}`));
       }
       return updated;
     });
@@ -510,11 +560,15 @@ function ReqableApp() {
         onOpenDriveModal={() => setIsDriveModalOpen(true)}
         onToggleAiCopilot={() => setIsAiCopilotOpen(!isAiCopilotOpen)}
         onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
+        onOpenReadmeModal={() => setIsReadmeModalOpen(true)}
         interceptorActive={interceptorActive}
         setInterceptorActive={setInterceptorActive}
         isTrafficSaving={isTrafficSaving}
         lastTrafficSaveTime={lastTrafficSaveTime}
         trafficCount={traffic.length}
+        firestoreSyncStatus={firestoreSyncStatus}
+        firestoreLastSyncTime={lastTrafficSaveTime}
+        onManualSync={() => notifySyncSuccess('Manual cloud sync verified')}
       />
 
       {/* Main Workspace View Switcher */}
@@ -537,12 +591,17 @@ function ReqableApp() {
             setCollections={(cols) => {
               setCollections(cols);
               if (user && Array.isArray(cols)) {
-                cols.forEach((col) => {
-                  setDoc(doc(db, 'users', user.uid, 'collections', col.id), {
-                    ...col,
-                    userId: user.uid,
-                  }).catch((err) => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/collections/${col.id}`));
-                });
+                setFirestoreSyncStatus('saving');
+                Promise.all(
+                  cols.map((col) =>
+                    setDoc(doc(db, 'users', user.uid, 'collections', col.id), {
+                      ...col,
+                      userId: user.uid,
+                    })
+                  )
+                )
+                  .then(() => notifySyncSuccess('Collections updated & saved to Firestore'))
+                  .catch((err) => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/collections`));
               }
             }}
             environments={environments}
@@ -557,12 +616,17 @@ function ReqableApp() {
             setRules={(r) => {
               setRules(r);
               if (user && Array.isArray(r)) {
-                r.forEach((rule) => {
-                  setDoc(doc(db, 'users', user.uid, 'rules', rule.id), {
-                    ...rule,
-                    userId: user.uid,
-                  }).catch((err) => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/rules/${rule.id}`));
-                });
+                setFirestoreSyncStatus('saving');
+                Promise.all(
+                  r.map((rule) =>
+                    setDoc(doc(db, 'users', user.uid, 'rules', rule.id), {
+                      ...rule,
+                      userId: user.uid,
+                    })
+                  )
+                )
+                  .then(() => notifySyncSuccess('Traffic rules updated & saved to Firestore'))
+                  .catch((err) => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/rules`));
               }
             }}
           />
@@ -571,6 +635,103 @@ function ReqableApp() {
         {activeTab === 'mcp' && <McpServerTab />}
 
         {activeTab === 'webhub' && <WebHubTab />}
+
+        {activeTab === 'auditlog' && <ApiAuditLogTab traffic={traffic} />}
+
+        {activeTab === 'gmail' && (
+          <GmailTab
+            onImportToReqable={(req) => {
+              const newReq: ApiRequest = {
+                id: `req-gmail-${Date.now()}`,
+                name: req.name || 'Gmail API Request',
+                method: req.method || 'GET',
+                url: req.url || 'https://gmail.googleapis.com/gmail/v1/users/me/messages',
+                headers: req.headers || [],
+                params: req.params || [],
+                bodyType: req.bodyType || 'none',
+                body: req.body || '',
+                auth: req.auth || { type: 'bearer' },
+              };
+              setCollections((prev) => {
+                const updated = [...prev];
+                if (updated.length > 0) {
+                  updated[0] = {
+                    ...updated[0],
+                    requests: [newReq, ...updated[0].requests],
+                  };
+                }
+                return updated;
+              });
+              setActiveTab('testing');
+            }}
+            onLogTraffic={(item) => setTraffic((prev) => [item, ...prev])}
+          />
+        )}
+
+        {activeTab === 'security' && (
+          <SecurityScannerTab
+            collections={collections}
+            traffic={traffic}
+            onAddTrafficRule={(rule) => {
+              setRules((prev) => [rule, ...prev]);
+              setActiveTab('rules');
+            }}
+            onOpenInDebugger={(req) => {
+              const newReq: ApiRequest = {
+                id: `req-sec-${Date.now()}`,
+                name: req.name || 'Security Audit Request',
+                method: req.method || 'GET',
+                url: req.url || 'http://localhost/api',
+                headers: [],
+                params: [],
+                bodyType: 'none',
+                body: '',
+                auth: { type: 'none' },
+              };
+              setCollections((prev) => {
+                const updated = [...prev];
+                if (updated.length > 0) {
+                  updated[0] = {
+                    ...updated[0],
+                    requests: [newReq, ...updated[0].requests],
+                  };
+                }
+                return updated;
+              });
+              setActiveTab('testing');
+            }}
+          />
+        )}
+
+        {activeTab === 'meet' && (
+          <GoogleMeetTab
+            onImportToReqable={(req) => {
+              const newReq: ApiRequest = {
+                id: `req-meet-${Date.now()}`,
+                name: req.name || 'Google Meet Request',
+                method: req.method || 'GET',
+                url: req.url || 'https://meetings.googleapis.com/v2/spaces',
+                headers: req.headers || [],
+                params: req.params || [],
+                bodyType: req.bodyType || 'none',
+                body: req.body || '',
+                auth: req.auth || { type: 'bearer' },
+              };
+              setCollections((prev) => {
+                const updated = [...prev];
+                if (updated.length > 0) {
+                  updated[0] = {
+                    ...updated[0],
+                    requests: [newReq, ...updated[0].requests],
+                  };
+                }
+                return updated;
+              });
+              setActiveTab('testing');
+            }}
+            onLogTraffic={(item) => setTraffic((prev) => [item, ...prev])}
+          />
+        )}
       </div>
 
       {/* Footer Performance Meter */}
@@ -597,6 +758,38 @@ function ReqableApp() {
         isOpen={isShortcutsModalOpen}
         onClose={() => setIsShortcutsModalOpen(false)}
       />
+
+      {/* Readme Documentation Modal */}
+      <ReadmeModal
+        isOpen={isReadmeModalOpen}
+        onClose={() => setIsReadmeModalOpen(false)}
+      />
+
+      {/* Firestore Notification Toast Indicator */}
+      {syncToast && (
+        <div
+          id="reqable-firestore-toast"
+          className="fixed bottom-12 right-6 z-50 flex items-center gap-3 bg-slate-900/95 border border-emerald-500/60 text-slate-100 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md animate-fadeIn transition-all max-w-sm pointer-events-auto"
+        >
+          <div className="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-700/80 flex items-center justify-center text-emerald-400 shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-emerald-300">Firestore Synced</span>
+              <span className="text-[10px] text-slate-400 font-mono">Just now</span>
+            </div>
+            <p className="text-slate-300 truncate mt-0.5">{syncToast.message}</p>
+          </div>
+          <button
+            onClick={() => setSyncToast(null)}
+            className="text-slate-400 hover:text-white p-1 text-xs font-bold leading-none rounded hover:bg-slate-800"
+            title="Dismiss notification"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

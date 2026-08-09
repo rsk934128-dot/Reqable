@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard, X, Command, Zap, Send, Save, Search, RefreshCw, Trash2, Layers, Cpu, Bot, Wand2, Globe, Download, Sun } from 'lucide-react';
+import { Keyboard, X, Command, Zap, Send, Save, Search, RefreshCw, Trash2, Layers, Cpu, Bot, Wand2, Globe, Download, Sun, FileText, Mail, Shield } from 'lucide-react';
 import { getShortcutDisplay } from '../hooks/useKeyboardShortcuts';
 
 interface KeyboardShortcutsModalProps {
@@ -116,6 +116,24 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
         label: 'Web Hub Tab',
         description: 'Embedded iframe viewer for Shurukkha Hub & external sites',
         icon: <Globe className="w-3.5 h-3.5 text-sky-400" />,
+      },
+      {
+        keyCombo: { alt: true, key: '6' },
+        label: 'API Audit Log Tab',
+        description: 'Read-only chronological ledger for network traffic auditing',
+        icon: <FileText className="w-3.5 h-3.5 text-emerald-400" />,
+      },
+      {
+        keyCombo: { alt: true, key: '7' },
+        label: 'Gmail Tab',
+        description: 'Google Workspace Gmail API integration for email search, sending & debugging',
+        icon: <Mail className="w-3.5 h-3.5 text-rose-400" />,
+      },
+      {
+        keyCombo: { alt: true, key: '8' },
+        label: 'Security Scanner Tab',
+        description: 'Scan API requests for SQLi, XSS, insecure HTTP & missing headers with code patches',
+        icon: <Shield className="w-3.5 h-3.5 text-emerald-400" />,
       },
       {
         keyCombo: { ctrl: true, shift: true, key: 'i' },

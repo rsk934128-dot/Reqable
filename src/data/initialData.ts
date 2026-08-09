@@ -306,8 +306,11 @@ export const INITIAL_RULES: TrafficRule[] = [
     name: 'Inject Debug Headers & Mock Key',
     enabled: true,
     type: 'rewrite',
+    group: 'Debugging & Headers',
+    tags: ['debug', 'headers', 'httpbin'],
     matchUrl: 'https://httpbin.org/*',
     matchMethod: 'ALL',
+    hitCount: 142,
     action: {
       targetField: 'headers',
       headersToAdd: [
@@ -321,8 +324,11 @@ export const INITIAL_RULES: TrafficRule[] = [
     name: 'Breakpoint on Payment Checkout',
     enabled: true,
     type: 'breakpoint',
+    group: 'Payment Services',
+    tags: ['checkout', 'intercept'],
     matchUrl: '*/payment*',
     matchMethod: 'POST',
+    hitCount: 89,
     action: {
       statusCode: 200,
       bodyReplace: JSON.stringify({ status: 'INTERCEPTED_PAUSED', message: 'Paused by Reqable Breakpoint' }),
@@ -333,8 +339,11 @@ export const INITIAL_RULES: TrafficRule[] = [
     name: 'Map Local User Profile Mock',
     enabled: false,
     type: 'map_local',
+    group: 'User Identity Mocks',
+    tags: ['user', 'profile', 'local-file'],
     matchUrl: '*/user/profile',
     matchMethod: 'GET',
+    hitCount: 34,
     action: {
       statusCode: 200,
       mapLocalFile: 'user_profile_mock.json',
@@ -346,8 +355,11 @@ export const INITIAL_RULES: TrafficRule[] = [
     name: 'Simulate 3G Network Delay (1500ms)',
     enabled: false,
     type: 'delay',
+    group: 'Network Throttling',
+    tags: ['slow-3g', 'latency'],
     matchUrl: '*',
     matchMethod: 'ALL',
+    hitCount: 12,
     action: {
       delayMs: 1500,
     },

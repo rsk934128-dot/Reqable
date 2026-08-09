@@ -3,12 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global Safety Net
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Common Helpers
     function isSignedIn() {
       return request.auth != null;
     }
@@ -17,77 +11,12 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
-    // User Profile Validation
-    function isValidUserProfile(data) {
-      return data.uid is string && data.uid == request.auth.uid
-        && data.email is string && data.email.size() <= 256;
-    }
-
-    // Collection Entity Validation
-    function isValidCollection(data) {
-      return data.id is string && data.id.size() <= 128
-        && data.name is string && data.name.size() <= 100
-        && data.userId is string && data.userId == request.auth.uid;
-    }
-
-    // Traffic Rule Validation
-    function isValidTrafficRule(data) {
-      return data.id is string && data.id.size() <= 128
-        && data.name is string && data.name.size() <= 100
-        && data.userId is string && data.userId == request.auth.uid
-        && data.enabled is bool
-        && data.type is string
-        && data.matchUrl is string && data.matchUrl.size() <= 1000;
-    }
-
-    // Traffic Item Validation
-    function isValidTrafficItem(data) {
-      return data.id is string && data.id.size() <= 128
-        && data.userId is string && data.userId == request.auth.uid
-        && data.method is string
-        && data.url is string && data.url.size() <= 2000;
-    }
-
-    // User Profile Rules
+    // Allow users to read and write only their own document and all subcollections
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow create, update: if isOwner(userId) && isValidUserProfile(incoming());
-      allow delete: if isOwner(userId);
+      allow read, write: if isOwner(userId);
 
-      // User API Request Collections
-      match /collections/{collectionId} {
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(collectionId) && isValidCollection(incoming());
-        allow update: if isOwner(userId) && isValidId(collectionId) && isValidCollection(incoming());
-        allow delete: if isOwner(userId);
-      }
-
-      // User Mock / Traffic Rules
-      match /rules/{ruleId} {
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(ruleId) && isValidTrafficRule(incoming());
-        allow update: if isOwner(userId) && isValidId(ruleId) && isValidTrafficRule(incoming());
-        allow delete: if isOwner(userId);
-      }
-
-      // User Captured Traffic Logs
-      match /traffic/{trafficId} {
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(trafficId) && isValidTrafficItem(incoming());
-        allow update: if isOwner(userId) && isValidId(trafficId) && isValidTrafficItem(incoming());
-        allow delete: if isOwner(userId);
+      match /{document=**} {
+        allow read, write: if isOwner(userId);
       }
     }
   }

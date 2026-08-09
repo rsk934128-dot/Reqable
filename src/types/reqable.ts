@@ -80,9 +80,12 @@ export interface TrafficRule {
   name: string;
   enabled: boolean;
   type: RuleType;
+  group?: string;
+  tags?: string[];
   matchUrl: string; // glob or regex
   matchMethod?: HttpMethod | 'ALL';
   matchStatus?: number;
+  hitCount?: number;
   action: {
     targetField?: 'status' | 'headers' | 'body' | 'url';
     statusCode?: number;
