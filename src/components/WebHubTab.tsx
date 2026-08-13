@@ -1,4 +1,7 @@
 import React, { useState, useRef } from 'react';
+import apiHubBannerImg from '../assets/images/api_hub_banner_1786299828338.jpg';
+import { TrafficItem, ApiRequest } from '../types/reqable';
+import { OpenApiDocView } from './OpenApiDocView';
 import {
   Globe,
   RefreshCw,
@@ -14,15 +17,22 @@ import {
   AlertCircle,
   Bookmark,
   Sparkles,
+  FileText,
+  Layers,
 } from 'lucide-react';
 
 interface WebHubTabProps {
   initialUrl?: string;
+  traffic?: TrafficItem[];
+  onImportToReqable?: (req: Partial<ApiRequest>) => void;
 }
 
 export const WebHubTab: React.FC<WebHubTabProps> = ({
   initialUrl = 'https://shurukkha-hub-9xp1.vecel.app',
+  traffic = [],
+  onImportToReqable,
 }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'webframe' | 'swagger_doc'>('webframe');
   const [url, setUrl] = useState<string>(initialUrl);
   const [iframeUrl, setIframeUrl] = useState<string>(initialUrl);
   const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
@@ -81,7 +91,78 @@ export const WebHubTab: React.FC<WebHubTabProps> = ({
 
   return (
     <div className={`flex flex-col h-full bg-slate-950 text-slate-100 ${isFullscreen ? 'fixed inset-0 z-50 p-4 bg-slate-950' : ''}`}>
-      {/* Top Header Bar */}
+      {/* Visual Hub Banner */}
+      {!isFullscreen && (
+        <div className="relative bg-slate-900 border-b border-slate-800 overflow-hidden px-4 py-3.5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 z-10">
+            <div className="w-12 h-12 rounded-xl overflow-hidden border border-teal-500/40 shadow-lg shadow-teal-500/10 shrink-0 bg-slate-950">
+              <img
+                src={apiHubBannerImg}
+                alt="Web Hub Marketplace"
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-100">ওয়েব হাব ও এপিআই ডিরেক্টরি (Web Hub & API Directory)</h2>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-teal-950 text-teal-300 border border-teal-800">
+                  LIVE EMBED
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                পাবলিক REST API ক্যাটালগ, শ সুরক্ষা হাব প্লেগ্রাউন্ড ও ওয়েব ভিউয়ার
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 z-10">
+            {/* Sub-tab Navigation Switcher */}
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <button
+                onClick={() => setActiveSubTab('webframe')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeSubTab === 'webframe'
+                    ? 'bg-teal-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>Web Frame Embed</span>
+              </button>
+
+              <button
+                onClick={() => setActiveSubTab('swagger_doc')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeSubTab === 'swagger_doc'
+                    ? 'bg-teal-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>OpenAPI / Swagger Docs</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 border border-slate-700 text-teal-300 font-mono font-bold ml-0.5">
+                  {traffic.length}
+                </span>
+              </button>
+            </div>
+
+            <div className="hidden lg:flex items-center gap-2 text-xs font-mono text-slate-400 bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800">
+              <Shield className="w-3.5 h-3.5 text-teal-400" />
+              <span>HTTPS Encrypted Proxy Frame</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RENDER VIEW ACCORDING TO SUB-TAB */}
+      {activeSubTab === 'swagger_doc' ? (
+        <div className="flex-1 overflow-hidden min-h-0">
+          <OpenApiDocView traffic={traffic} onImportToReqable={onImportToReqable} />
+        </div>
+      ) : (
+        <>
+          {/* Top Header Bar */}
       <div className="p-3 bg-slate-900 border-b border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm">
         {/* URL Address Input Bar */}
         <form onSubmit={handleNavigate} className="flex-1 flex items-center gap-2">
@@ -265,6 +346,8 @@ export const WebHubTab: React.FC<WebHubTabProps> = ({
           <ExternalLink className="w-3.5 h-3.5" />
         </a>
       </div>
+        </>
+      )}
     </div>
   );
 };

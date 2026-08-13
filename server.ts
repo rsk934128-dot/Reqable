@@ -5,7 +5,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import { INITIAL_COLLECTIONS, INITIAL_ENVIRONMENTS, INITIAL_RULES, INITIAL_TRAFFIC } from './src/data/initialData.js';
-import { TrafficItem, TrafficRule } from './src/types/reqable.js';
+import { HttpMethod, TrafficItem, TrafficRule } from './src/types/reqable.js';
 
 const app = express();
 const PORT = 3000;
@@ -28,6 +28,43 @@ function getGenAIClient(): GoogleGenAI | null {
     return null;
   }
   return new GoogleGenAI({ apiKey });
+}
+
+// Template variables renderer for dynamic mock responses
+function renderMockTemplate(
+  templateStr: string,
+  reqInfo?: { url?: string; method?: string; query?: Record<string, string>; headers?: Record<string, string> }
+): string {
+  if (!templateStr) return templateStr;
+  let result = templateStr;
+
+  result = result.replace(/\{\{\$guid\}\}/g, () =>
+    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    })
+  );
+
+  result = result.replace(/\{\{\$timestamp\}\}/g, () => new Date().toISOString());
+  result = result.replace(/\{\{\$isoDate\}\}/g, () => new Date().toISOString().split('T')[0]);
+  result = result.replace(/\{\{\$randomInt\}\}/g, () => Math.floor(Math.random() * 1000).toString());
+  result = result.replace(/\{\{\$randomPrice\}\}/g, () => (Math.random() * 100 + 5).toFixed(2));
+
+  const names = ['Alex Johnson', 'Samantha Smith', 'David Chen', 'Maria Garcia', 'Liam Wilson', 'Elena Rostova'];
+  result = result.replace(/\{\{\$randomName\}\}/g, () => names[Math.floor(Math.random() * names.length)]);
+
+  const emails = ['alex@example.com', 'samantha@test.org', 'david.chen@dev.io', 'm.garcia@company.com'];
+  result = result.replace(/\{\{\$randomEmail\}\}/g, () => emails[Math.floor(Math.random() * emails.length)]);
+
+  if (reqInfo?.query) {
+    Object.entries(reqInfo.query).forEach(([k, v]) => {
+      const reg = new RegExp(`\\{\\{\\$request\\.query\\.${k}\\}\\}`, 'g');
+      result = result.replace(reg, String(v));
+    });
+  }
+
+  return result;
 }
 
 // Helper to evaluate traffic rules
@@ -60,6 +97,7 @@ function applyRules(url: string, method: string, reqHeaders: Record<string, stri
 
     if (isMatch) {
       matchedRule = rule;
+      rule.hitCount = (rule.hitCount || 0) + 1;
       if (rule.type === 'rewrite') {
         if (rule.action.headersToAdd) {
           rule.action.headersToAdd.forEach((h) => {
@@ -69,9 +107,11 @@ function applyRules(url: string, method: string, reqHeaders: Record<string, stri
       } else if (rule.type === 'breakpoint') {
         if (rule.action.statusCode) injectedStatus = rule.action.statusCode;
         if (rule.action.bodyReplace) modifiedBody = rule.action.bodyReplace;
-      } else if (rule.type === 'map_local') {
+      } else if (rule.type === 'map_local' || rule.type === 'mock_server') {
         injectedStatus = rule.action.statusCode || 200;
-        if (rule.action.bodyReplace) modifiedBody = rule.action.bodyReplace;
+        if (rule.action.bodyReplace) {
+          modifiedBody = renderMockTemplate(rule.action.bodyReplace, { url, method, headers: reqHeaders });
+        }
       } else if (rule.type === 'delay') {
         delayMs = rule.action.delayMs || 500;
       }
@@ -284,6 +324,149 @@ app.put('/api/rules/:id', (req: Request, res: Response) => {
 app.delete('/api/rules/:id', (req: Request, res: Response) => {
   rulesStore = rulesStore.filter((r) => r.id !== req.params.id);
   res.json({ success: true });
+});
+
+// -------------------------------------------------------------
+// 3.5 API MOCK SERVER ENDPOINT ROUTER
+// -------------------------------------------------------------
+app.all('/api/mock/*', async (req: Request, res: Response) => {
+  const mockPath = req.params[0] || '';
+  const fullMockUrl = `/api/mock/${mockPath}`;
+  const method = req.method.toUpperCase();
+  const queryMap: Record<string, string> = {};
+  if (req.query) {
+    Object.entries(req.query).forEach(([k, v]) => {
+      queryMap[k] = String(v);
+    });
+  }
+
+  // Find matching active mock rule
+  let matchedRule: TrafficRule | null = null;
+  for (const rule of rulesStore) {
+    if (!rule.enabled) continue;
+
+    let isMatch = false;
+    const rulePattern = (rule.matchUrl || '').trim();
+
+    if (rulePattern === '*' || rulePattern === 'ALL') {
+      isMatch = true;
+    } else if (rulePattern.includes('*')) {
+      const regexStr = '^' + rulePattern.replace(/\*/g, '.*') + '$';
+      isMatch =
+        new RegExp(regexStr, 'i').test(fullMockUrl) ||
+        new RegExp(regexStr, 'i').test(mockPath) ||
+        new RegExp(regexStr, 'i').test('/' + mockPath);
+    } else {
+      const cleanPattern = rulePattern.toLowerCase();
+      isMatch =
+        fullMockUrl.toLowerCase().includes(cleanPattern) ||
+        mockPath.toLowerCase().includes(cleanPattern) ||
+        `/${mockPath}`.toLowerCase().includes(cleanPattern);
+    }
+
+    if (rule.matchMethod && rule.matchMethod !== 'ALL') {
+      if (rule.matchMethod.toUpperCase() !== method) {
+        isMatch = false;
+      }
+    }
+
+    if (isMatch) {
+      matchedRule = rule;
+      break;
+    }
+  }
+
+  if (matchedRule) {
+    matchedRule.hitCount = (matchedRule.hitCount || 0) + 1;
+
+    // Latency simulation
+    const delayMs = matchedRule.action?.delayMs || 0;
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, 5000)));
+    }
+
+    // Chaos Mode / Failure Rate Simulation
+    if (matchedRule.action?.failureRate && Math.random() * 100 < matchedRule.action.failureRate) {
+      return res.status(500).json({
+        error: 'Simulated Random Chaos Failure',
+        ruleApplied: matchedRule.name,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const statusCode = matchedRule.action?.statusCode || 200;
+    const contentType = matchedRule.action?.contentType || 'application/json';
+
+    // Set Response Headers
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('X-Reqable-Mock-Server', 'true');
+    res.setHeader('X-Reqable-Rule-Id', matchedRule.id);
+    if (matchedRule.action?.headersToAdd) {
+      matchedRule.action.headersToAdd.forEach((h) => {
+        if (h.enabled && h.key) res.setHeader(h.key, h.value);
+      });
+    }
+
+    // Render Body with Dynamic Template Variables
+    const rawBody =
+      matchedRule.action?.bodyReplace ||
+      '{\n  "status": "success",\n  "message": "Mock response from Reqable Server"\n}';
+    const renderedBody = renderMockTemplate(rawBody, {
+      url: fullMockUrl,
+      method,
+      query: queryMap,
+      headers: req.headers as Record<string, string>,
+    });
+
+    // Log transaction to trafficStore
+    const newTrafficItem: TrafficItem = {
+      id: `tf-mock-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString(),
+      method: method as HttpMethod,
+      url: `${req.protocol}://${req.get('host') || 'localhost:3000'}${fullMockUrl}`,
+      protocol: 'HTTP/1.1 (Mock)',
+      requestHeaders: req.headers as Record<string, string>,
+      requestBody: typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}),
+      responseStatus: statusCode,
+      responseHeaders: { 'content-type': contentType, 'x-reqable-mock-server': 'true' },
+      responseBody: renderedBody,
+      durationMs: delayMs + 12,
+      sizeBytes: Buffer.byteLength(renderedBody, 'utf8'),
+      clientIp: req.ip || '127.0.0.1',
+      status: 'modified',
+      ruleApplied: matchedRule.name,
+      timingBreakdown: {
+        dns: 1,
+        tcp: 2,
+        tls: 0,
+        ttfb: delayMs + 5,
+        download: 4,
+        total: delayMs + 12,
+      },
+    };
+
+    trafficStore.unshift(newTrafficItem);
+    if (trafficStore.length > 100) trafficStore.pop();
+
+    res.status(statusCode);
+    if (contentType.includes('json')) {
+      try {
+        const parsed = JSON.parse(renderedBody);
+        return res.json(parsed);
+      } catch {
+        return res.send(renderedBody);
+      }
+    }
+    return res.send(renderedBody);
+  }
+
+  // 404 fallback if no mock rule matched
+  return res.status(404).json({
+    error: 'No matching Mock Server rule configured in Reqable',
+    requestedPath: fullMockUrl,
+    method,
+    hint: 'Open the "Rules Engine" tab and create a Mock Server rule matching this endpoint pattern.',
+  });
 });
 
 // -------------------------------------------------------------

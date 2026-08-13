@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import zkpDistrictNodesPreviewImg from '../assets/images/zkp_district_nodes_preview_1786292063708.jpg';
 import {
   Shield,
   ShieldAlert,
@@ -560,8 +561,13 @@ export const SecurityScannerTab: React.FC<SecurityScannerTabProps> = ({
       {/* Top Banner Header */}
       <div className="p-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-950 text-emerald-400 rounded-xl border border-emerald-800 shadow-md">
-            <ShieldAlert className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden border border-emerald-500/40 shadow-md shadow-emerald-500/20 shrink-0 bg-slate-950">
+            <img
+              src={zkpDistrictNodesPreviewImg}
+              alt="Security Nodes Visual"
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
           </div>
           <div>
             <div className="flex items-center gap-2">

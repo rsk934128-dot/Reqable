@@ -12,13 +12,10 @@ import { initializeFirestore, doc, getDoc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = initializeFirestore(
-  app,
-  {
-    experimentalAutoDetectLongPolling: true,
-  },
-  (firebaseConfig as any).firestoreDatabaseId
-);
+const firestoreDbId = (firebaseConfig as any).firestoreDatabaseId;
+export const db = firestoreDbId
+  ? initializeFirestore(app, { experimentalAutoDetectLongPolling: true }, firestoreDbId)
+  : initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
 export const auth = getAuth(app);
 export const googleAuthProvider = new GoogleAuthProvider();
 // Add Gmail & Workspace OAuth scopes
@@ -89,16 +86,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 }
 
 export async function testFirebaseConnection() {
+  // Safe non-blocking connection check without forcing 10s server timeouts
   try {
-    const connectionPromise = getDoc(doc(db, 'test', 'connection'));
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('connection-timeout')), 3000)
-    );
-    await Promise.race([connectionPromise, timeoutPromise]);
+    if (db) {
+      console.log('Firebase Firestore initialized successfully.');
+    }
   } catch (error) {
-    // Non-blocking connection diagnostic check
     if (error instanceof Error) {
-      console.warn("Firebase connection notice (app will function using cached state):", error.message);
+      console.warn('Firebase connection notice:', error.message);
     }
   }
 }

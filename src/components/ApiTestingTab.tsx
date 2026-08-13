@@ -30,8 +30,14 @@ import {
   Keyboard,
   Wand2,
   FileCode,
+  GitBranch,
+  Tag,
+  GitFork,
+  Settings,
+  X,
+  Check,
 } from 'lucide-react';
-import { ApiRequest, ApiResponse, Collection, CollectionFolder, Environment, HttpMethod, KeyValuePair } from '../types/reqable';
+import { ApiRequest, ApiResponse, Collection, CollectionFolder, CollectionVersion, Environment, HttpMethod, KeyValuePair } from '../types/reqable';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
 interface ApiTestingTabProps {
@@ -280,6 +286,161 @@ pm.test("Response time is fast (< 1000ms)", function () {
   const [saveToast, setSaveToast] = useState(false);
   const [formatError, setFormatError] = useState<string | null>(null);
   const [formatSuccess, setFormatSuccess] = useState<string | null>(null);
+  const [mobileShowSidebar, setMobileShowSidebar] = useState<boolean>(false);
+
+  // API Collection Versioning State
+  const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+  const [versionToast, setVersionToast] = useState<string | null>(null);
+  const [newVerTag, setNewVerTag] = useState('v2.0.0');
+  const [newVerName, setNewVerName] = useState('v2.0.0 (Beta Next-Gen)');
+  const [newVerDesc, setNewVerDesc] = useState('New version release with updated endpoints');
+  const [cloneCurrent, setCloneCurrent] = useState(true);
+
+  // Switch active version for a collection
+  const handleSwitchVersion = (colId: string, targetVerTag: string) => {
+    setCollections((prevCols) =>
+      prevCols.map((col) => {
+        if (col.id !== colId) return col;
+
+        const currentVerTag = col.version || 'v1.0.0';
+
+        // 1. Snapshot current collection requests & folders into existingVersions list
+        const existingVersions: CollectionVersion[] = col.versions && col.versions.length > 0
+          ? col.versions
+          : [
+              {
+                id: `ver-${col.id}-${currentVerTag}`,
+                version: currentVerTag,
+                name: `${currentVerTag} (Active)`,
+                requests: col.requests,
+                folders: col.folders,
+                variables: col.variables,
+                createdAt: new Date().toISOString(),
+              },
+            ];
+
+        // Update the current version entry with latest requests/folders
+        const updatedVersions = existingVersions.map((v) =>
+          v.version === currentVerTag
+            ? { ...v, requests: col.requests, folders: col.folders, variables: col.variables }
+            : v
+        );
+
+        // 2. Find target version snapshot
+        const targetVer = updatedVersions.find((v) => v.version === targetVerTag);
+        if (!targetVer) return col;
+
+        const newRequests = targetVer.requests || [];
+        const newFolders = targetVer.folders || [];
+        const newVariables = targetVer.variables || col.variables;
+
+        // If current activeReq is not in the new version, switch activeReq to first request
+        if (newRequests.length > 0 && !newRequests.some((r) => r.id === activeReq.id)) {
+          setActiveReq(newRequests[0]);
+        }
+
+        setVersionToast(`Switched "${col.name}" to API Version ${targetVerTag}`);
+        setTimeout(() => setVersionToast(null), 3000);
+
+        return {
+          ...col,
+          version: targetVerTag,
+          versions: updatedVersions,
+          requests: newRequests,
+          folders: newFolders,
+          variables: newVariables,
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
+  // Create a new API Version tag for a collection
+  const handleCreateNewVersion = (colId: string, tag: string, name?: string, desc?: string, clone: boolean = true) => {
+    if (!tag.trim()) return;
+    const cleanTag = tag.trim().toLowerCase().startsWith('v') ? tag.trim() : `v${tag.trim()}`;
+
+    setCollections((prevCols) =>
+      prevCols.map((col) => {
+        if (col.id !== colId) return col;
+
+        const currentVerTag = col.version || 'v1.0.0';
+        const existingVersions: CollectionVersion[] = col.versions && col.versions.length > 0
+          ? col.versions
+          : [
+              {
+                id: `ver-${col.id}-${currentVerTag}`,
+                version: currentVerTag,
+                name: `${currentVerTag} (Active)`,
+                requests: col.requests,
+                folders: col.folders,
+                variables: col.variables,
+                createdAt: new Date().toISOString(),
+              },
+            ];
+
+        if (existingVersions.some((v) => v.version.toLowerCase() === cleanTag.toLowerCase())) {
+          alert(`API Version ${cleanTag} already exists for this collection.`);
+          return col;
+        }
+
+        const newVerObj: CollectionVersion = {
+          id: `ver-${col.id}-${Date.now()}`,
+          version: cleanTag,
+          name: name?.trim() || `${cleanTag} Release`,
+          description: desc?.trim() || `API Version created on ${new Date().toLocaleDateString()}`,
+          createdAt: new Date().toISOString(),
+          requests: clone ? JSON.parse(JSON.stringify(col.requests)) : [],
+          folders: clone ? JSON.parse(JSON.stringify(col.folders)) : [],
+          variables: JSON.parse(JSON.stringify(col.variables)),
+        };
+
+        const updatedVersions = [
+          ...existingVersions.map((v) =>
+            v.version === currentVerTag
+              ? { ...v, requests: col.requests, folders: col.folders, variables: col.variables }
+              : v
+          ),
+          newVerObj,
+        ];
+
+        setVersionToast(`Created and switched to API Version ${cleanTag}`);
+        setTimeout(() => setVersionToast(null), 3000);
+
+        return {
+          ...col,
+          version: cleanTag,
+          versions: updatedVersions,
+          requests: newVerObj.requests,
+          folders: newVerObj.folders || [],
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
+  // Delete an API version tag
+  const handleDeleteVersionTag = (colId: string, targetVerTag: string) => {
+    const col = collections.find((c) => c.id === colId);
+    if (!col) return;
+    if (col.version === targetVerTag) {
+      alert('Cannot delete the currently active version tag. Switch to another version first.');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete API Version ${targetVerTag}?`)) return;
+
+    setCollections((prevCols) =>
+      prevCols.map((c) => {
+        if (c.id !== colId) return c;
+        return {
+          ...c,
+          versions: (c.versions || []).filter((v) => v.version !== targetVerTag),
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  };
 
   const urlInputRef = useRef<HTMLInputElement>(null);
 
@@ -961,7 +1122,7 @@ pm.test("Response time is fast (< 1000ms)", function () {
   return (
     <div id="api-testing-view" className="flex h-[calc(100vh-53px)] bg-slate-950 text-slate-200 overflow-hidden">
       {/* Sidebar: Collections Tree */}
-      <aside id="reqable-collections-sidebar" className="w-64 border-r border-slate-800 bg-slate-900/60 flex flex-col shrink-0">
+      <aside id="reqable-collections-sidebar" className={`w-full md:w-64 xl:w-72 border-r border-slate-800 bg-slate-900/60 flex-col shrink-0 ${mobileShowSidebar ? 'flex' : 'hidden md:flex'}`}>
         <div className="p-3 border-b border-slate-800 flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-sky-400" /> Collections
@@ -1077,6 +1238,53 @@ pm.test("Response time is fast (< 1000ms)", function () {
                   </div>
                 </div>
 
+                {/* Collection Version Switcher Row */}
+                <div
+                  className="px-2 py-1 bg-slate-950/80 border-t border-slate-800/50 flex items-center justify-between gap-1 text-[11px]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-1 min-w-0">
+                    <GitBranch className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold shrink-0">Ver:</span>
+                    <select
+                      value={col.version || 'v1.0.0'}
+                      onChange={(e) => {
+                        if (e.target.value === '__NEW_VERSION__') {
+                          setActiveCollectionId(col.id);
+                          setIsVersionModalOpen(true);
+                        } else {
+                          handleSwitchVersion(col.id, e.target.value);
+                        }
+                      }}
+                      className="bg-slate-900 border border-slate-800 text-emerald-300 font-mono text-[11px] font-bold rounded px-1.5 py-0.5 focus:outline-none focus:border-emerald-500 hover:border-slate-700 transition-all cursor-pointer truncate max-w-[110px]"
+                      title="Switch API Version"
+                    >
+                      {(col.versions && col.versions.length > 0
+                        ? col.versions
+                        : [{ id: 'v1', version: col.version || 'v1.0.0', name: col.version || 'v1.0.0' }]
+                      ).map((v) => (
+                        <option key={v.id} value={v.version} className="bg-slate-900 text-slate-200">
+                          {v.version} {v.name ? `(${v.name})` : ''}
+                        </option>
+                      ))}
+                      <option value="__NEW_VERSION__" className="bg-slate-900 text-amber-400 font-bold">
+                        + New Version...
+                      </option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setActiveCollectionId(col.id);
+                      setIsVersionModalOpen(true);
+                    }}
+                    className="p-1 text-slate-400 hover:text-sky-300 hover:bg-slate-800 rounded transition-colors flex items-center gap-1 shrink-0"
+                    title="Manage API Versions"
+                  >
+                    <Settings className="w-3 h-3" />
+                  </button>
+                </div>
+
                 {/* Collection Tree Content */}
                 {isColExpanded && (
                   <div className="p-1 pt-0 space-y-0.5 border-t border-slate-800/40">
@@ -1173,18 +1381,67 @@ pm.test("Response time is fast (< 1000ms)", function () {
       </aside>
 
       {/* Main Request & Response Panel */}
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-950">
+      <main className={`flex-1 flex-col min-w-0 bg-slate-950 ${mobileShowSidebar ? 'hidden md:flex' : 'flex'}`}>
         {/* Collection Summary Dashboard Banner */}
         <div id="collection-summary-dashboard" className="border-b border-slate-800 bg-slate-900/50 p-3">
           <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Mobile Sidebar Toggle Button */}
+              <button
+                onClick={() => setMobileShowSidebar(!mobileShowSidebar)}
+                className="md:hidden px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded text-xs font-bold flex items-center gap-1 cursor-pointer border border-slate-700"
+                title="Toggle Collections Tree"
+              >
+                <Layers className="w-3.5 h-3.5 text-sky-400" />
+                <span>Collections</span>
+              </button>
+
               <Activity className="w-4 h-4 text-sky-400" />
               <span className="text-xs font-bold text-slate-100 uppercase tracking-wide">
-                Collection Summary Dashboard: <span className="text-sky-400 font-extrabold">{activeCol?.name || 'All Endpoints'}</span>
+                Collection Summary: <span className="text-sky-400 font-extrabold">{activeCol?.name || 'All Endpoints'}</span>
               </span>
               <span className="text-[11px] text-slate-400 font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
                 {activeColRequests.length} Endpoints
               </span>
+
+              {/* API Version Dropdown Control */}
+              <div className="flex items-center gap-1.5 bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800">
+                <GitBranch className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="text-[10px] font-mono text-slate-400 uppercase font-bold shrink-0">Version:</span>
+                <select
+                  id="select-api-version-dashboard"
+                  value={activeCol?.version || 'v1.0.0'}
+                  onChange={(e) => {
+                    if (!activeCol) return;
+                    if (e.target.value === '__NEW_VERSION__') {
+                      setIsVersionModalOpen(true);
+                    } else {
+                      handleSwitchVersion(activeCol.id, e.target.value);
+                    }
+                  }}
+                  className="bg-slate-900 text-emerald-300 font-mono text-xs font-bold rounded px-2 py-0.5 border border-emerald-900/60 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  title="Switch Collection API Version"
+                >
+                  {(activeCol?.versions && activeCol.versions.length > 0
+                    ? activeCol.versions
+                    : [{ id: 'v1', version: activeCol?.version || 'v1.0.0', name: activeCol?.version || 'v1.0.0' }]
+                  ).map((v) => (
+                    <option key={v.id} value={v.version} className="bg-slate-900 text-slate-200">
+                      {v.version} {v.name ? `— ${v.name}` : ''}
+                    </option>
+                  ))}
+                  <option value="__NEW_VERSION__" className="bg-slate-900 text-amber-400 font-bold">
+                    + Create New Version Tag...
+                  </option>
+                </select>
+                <button
+                  onClick={() => setIsVersionModalOpen(true)}
+                  className="p-1 text-slate-400 hover:text-sky-300 rounded hover:bg-slate-800 transition-colors"
+                  title="Manage Collection Versions"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1939,6 +2196,198 @@ pm.test("Response time is fast (< 1000ms)", function () {
                   Confirm Move
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification for Versioning */}
+      {versionToast && (
+        <div className="fixed top-16 right-6 z-50 bg-emerald-950 border border-emerald-600 text-emerald-200 px-3.5 py-2 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 animate-bounce">
+          <GitBranch className="w-4 h-4 text-emerald-400" />
+          <span>{versionToast}</span>
+        </div>
+      )}
+
+      {/* Manage API Versions Modal */}
+      {isVersionModalOpen && activeCol && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 w-full max-w-xl shadow-2xl text-slate-200 space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800">
+                  <GitBranch className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100">Manage API Versions & Releases</h3>
+                  <p className="text-xs text-slate-400">Collection: <span className="text-sky-400 font-semibold">{activeCol.name}</span></p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsVersionModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Current Active Version Banner */}
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-mono text-slate-500 font-bold">Active API Version</span>
+                <div className="text-sm font-bold font-mono text-emerald-400 flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-emerald-400" />
+                  {activeCol.version || 'v1.0.0'}
+                </div>
+              </div>
+              <span className="text-xs text-slate-400 font-mono">
+                {activeCol.requests.length} Endpoints • {activeCol.folders.length} Folders
+              </span>
+            </div>
+
+            {/* Existing Version Tags List */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-sky-400" /> Version Tag Snapshots ({activeCol.versions?.length || 1})
+              </h4>
+              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                {(activeCol.versions && activeCol.versions.length > 0
+                  ? activeCol.versions
+                  : [
+                      {
+                        id: `v-default-${activeCol.id}`,
+                        version: activeCol.version || 'v1.0.0',
+                        name: `${activeCol.version || 'v1.0.0'} (Default)`,
+                        requests: activeCol.requests,
+                        folders: activeCol.folders,
+                        createdAt: activeCol.updatedAt,
+                      },
+                    ]
+                ).map((vObj) => {
+                  const isActive = vObj.version === (activeCol.version || 'v1.0.0');
+                  return (
+                    <div
+                      key={vObj.id}
+                      className={`p-2.5 rounded-lg border transition-all flex items-center justify-between ${
+                        isActive
+                          ? 'bg-emerald-950/40 border-emerald-700/80'
+                          : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-slate-100">{vObj.version}</span>
+                          {vObj.name && <span className="text-xs text-slate-400 truncate">({vObj.name})</span>}
+                          {isActive && (
+                            <span className="px-1.5 py-0.2 text-[9px] font-extrabold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-600/50 rounded uppercase">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        {vObj.description && <p className="text-[11px] text-slate-500 truncate mt-0.5">{vObj.description}</p>}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {!isActive ? (
+                          <button
+                            onClick={() => handleSwitchVersion(activeCol.id, vObj.version)}
+                            className="px-2 py-1 rounded bg-sky-950 hover:bg-sky-900 border border-sky-700 text-sky-300 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Check className="w-3 h-3" /> Switch
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-emerald-400 font-mono font-bold px-2 py-0.5 bg-emerald-950 rounded">
+                            Current
+                          </span>
+                        )}
+
+                        {!isActive && (
+                          <button
+                            onClick={() => handleDeleteVersionTag(activeCol.id, vObj.version)}
+                            className="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-slate-800 cursor-pointer"
+                            title="Delete version tag"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Create New Version Branch Section */}
+            <div className="border-t border-slate-800 pt-3 space-y-2">
+              <h4 className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Tag New API Version Release
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div>
+                  <label className="block text-slate-400 text-[11px] mb-1 font-medium">Version Tag (e.g. v2.1.0)</label>
+                  <input
+                    type="text"
+                    value={newVerTag}
+                    onChange={(e) => setNewVerTag(e.target.value)}
+                    placeholder="v2.0.0"
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 font-mono text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 text-[11px] mb-1 font-medium">Version Label / Title</label>
+                  <input
+                    type="text"
+                    value={newVerName}
+                    onChange={(e) => setNewVerName(e.target.value)}
+                    placeholder="v2.0.0 (Beta Next-Gen)"
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 text-[11px] mb-1 font-medium">Version Description</label>
+                <input
+                  type="text"
+                  value={newVerDesc}
+                  onChange={(e) => setNewVerDesc(e.target.value)}
+                  placeholder="Release notes / change log summary..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none focus:border-amber-500 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={cloneCurrent}
+                    onChange={(e) => setCloneCurrent(e.target.checked)}
+                    className="rounded bg-slate-950 border-slate-800 text-amber-500 focus:ring-0"
+                  />
+                  <span>Clone current active endpoints ({activeCol.requests.length}) into new version</span>
+                </label>
+
+                <button
+                  onClick={() => {
+                    handleCreateNewVersion(activeCol.id, newVerTag, newVerName, newVerDesc, cloneCurrent);
+                  }}
+                  className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-amber-500/20 cursor-pointer"
+                >
+                  <GitFork className="w-3.5 h-3.5 fill-current" />
+                  <span>Create Version Snapshot</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end border-t border-slate-800 pt-3">
+              <button
+                onClick={() => setIsVersionModalOpen(false)}
+                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

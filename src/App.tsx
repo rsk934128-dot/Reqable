@@ -634,7 +634,35 @@ function ReqableApp() {
 
         {activeTab === 'mcp' && <McpServerTab />}
 
-        {activeTab === 'webhub' && <WebHubTab />}
+        {activeTab === 'webhub' && (
+          <WebHubTab
+            traffic={traffic}
+            onImportToReqable={(req) => {
+              const newReq: ApiRequest = {
+                id: `req-doc-${Date.now()}`,
+                name: req.name || 'OpenAPI Endpoint Request',
+                method: req.method || 'GET',
+                url: req.url || 'https://api.example.com',
+                headers: req.headers || [],
+                params: req.params || [],
+                bodyType: req.bodyType || 'none',
+                body: req.body || '',
+                auth: req.auth || { type: 'none' },
+              };
+              setCollections((prev) => {
+                const updated = [...prev];
+                if (updated.length > 0) {
+                  updated[0] = {
+                    ...updated[0],
+                    requests: [newReq, ...updated[0].requests],
+                  };
+                }
+                return updated;
+              });
+              setActiveTab('testing');
+            }}
+          />
+        )}
 
         {activeTab === 'auditlog' && <ApiAuditLogTab traffic={traffic} />}
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
+import mockRulesEnginePreviewImg from '../assets/images/mock_rules_engine_preview_1786292041296.jpg';
 import {
   Clock,
   Code,
@@ -30,6 +31,14 @@ import {
   SlidersHorizontal,
   Edit2,
   ListFilter,
+  Server,
+  Play,
+  Copy,
+  ExternalLink,
+  RefreshCw,
+  Zap,
+  Terminal,
+  Send,
 } from 'lucide-react';
 import {
   DndContext,
@@ -47,7 +56,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { RuleType, TrafficRule } from '../types/reqable';
+import { HttpMethod, KeyValuePair, RuleType, TrafficRule } from '../types/reqable';
 import { RulesAnalyticsWidget } from './RulesAnalyticsWidget';
 
 interface RulesEngineTabProps {
@@ -63,6 +72,8 @@ interface SortableRuleItemProps {
   handleDeleteRule: (id: string) => void;
   handleEditRule: (rule: TrafficRule) => void;
   handleAssignGroup: (ruleId: string, groupName: string) => void;
+  handleRunTestEndpoint: (rule: TrafficRule) => void;
+  handleCopyMockUrl: (rule: TrafficRule) => void;
 }
 
 const SortableRuleItem: React.FC<SortableRuleItemProps> = ({
@@ -73,6 +84,8 @@ const SortableRuleItem: React.FC<SortableRuleItemProps> = ({
   handleDeleteRule,
   handleEditRule,
   handleAssignGroup,
+  handleRunTestEndpoint,
+  handleCopyMockUrl,
 }) => {
   const {
     attributes,
@@ -87,6 +100,8 @@ const SortableRuleItem: React.FC<SortableRuleItemProps> = ({
     transform: CSS.Transform.toString(transform),
     transition,
   };
+
+  const isMockType = rule.type === 'mock_server' || rule.type === 'map_local';
 
   return (
     <div
@@ -122,18 +137,27 @@ const SortableRuleItem: React.FC<SortableRuleItemProps> = ({
         <div className="space-y-1 flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
             <span
-              className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase shrink-0 ${
-                rule.type === 'breakpoint'
+              className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase shrink-0 flex items-center gap-1 ${
+                rule.type === 'mock_server'
+                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                  : rule.type === 'breakpoint'
                   ? 'bg-sky-950 text-sky-400 border border-sky-800'
                   : rule.type === 'rewrite'
                   ? 'bg-purple-950 text-purple-400 border border-purple-800'
                   : rule.type === 'map_local'
-                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                  ? 'bg-teal-950 text-teal-400 border border-teal-800'
                   : 'bg-amber-950 text-amber-400 border border-amber-800'
               }`}
             >
-              {rule.type}
+              {rule.type === 'mock_server' && <Server className="w-3 h-3 text-emerald-400" />}
+              {rule.type === 'mock_server' ? 'API MOCK SERVER' : rule.type}
             </span>
+
+            {rule.matchMethod && rule.matchMethod !== 'ALL' && (
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-950 text-sky-400 border border-slate-800 uppercase shrink-0">
+                {rule.matchMethod}
+              </span>
+            )}
 
             <span className="font-bold text-sm text-slate-100 truncate">{rule.name}</span>
 
@@ -154,11 +178,10 @@ const SortableRuleItem: React.FC<SortableRuleItemProps> = ({
             <span className="truncate">
               Match: <strong className="text-sky-300">{rule.matchUrl}</strong>
             </span>
-            {rule.action.delayMs ? (
-              <span>Delay: {rule.action.delayMs}ms</span>
-            ) : null}
-            {rule.action.statusCode ? (
-              <span>Mock Status: {rule.action.statusCode}</span>
+            {rule.action.delayMs ? <span>Delay: {rule.action.delayMs}ms</span> : null}
+            {rule.action.statusCode ? <span>Status: {rule.action.statusCode}</span> : null}
+            {rule.action.failureRate ? (
+              <span className="text-rose-400">Chaos: {rule.action.failureRate}%</span>
             ) : null}
 
             {/* Tags */}
@@ -178,8 +201,31 @@ const SortableRuleItem: React.FC<SortableRuleItemProps> = ({
         </div>
       </div>
 
-      {/* Group Quick Selector & Actions */}
+      {/* Quick Actions & Test Endpoint */}
       <div className="flex items-center gap-2 shrink-0 self-end sm:self-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/60 w-full sm:w-auto justify-between sm:justify-end">
+        {/* Mock Server Test & Copy Buttons */}
+        {isMockType && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => handleCopyMockUrl(rule)}
+              className="p-1.5 text-slate-400 hover:text-white bg-slate-950 hover:bg-slate-800 rounded border border-slate-800 text-xs transition-colors flex items-center gap-1"
+              title="Copy Mock Endpoint URL"
+            >
+              <Copy className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden lg:inline text-[10px] font-mono">Copy URL</span>
+            </button>
+
+            <button
+              onClick={() => handleRunTestEndpoint(rule)}
+              className="px-2.5 py-1 text-xs font-semibold bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/30 rounded flex items-center gap-1 transition-all"
+              title="Send a live test request to this mock endpoint"
+            >
+              <Play className="w-3 h-3 text-emerald-400" />
+              <span>Test Mock</span>
+            </button>
+          </div>
+        )}
+
         {/* Quick Folder Assignment */}
         <select
           value={rule.group || ''}
@@ -236,7 +282,8 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Grouping & Filtering State
+  // Filter & View State
+  const [ruleTypeFilter, setRuleTypeFilter] = useState<'all' | 'mock_server' | 'interception'>('all');
   const [groupBy, setGroupBy] = useState<'folder' | 'type' | 'status' | 'none'>('folder');
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -246,15 +293,47 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
   const [isNewGroupModalOpen, setIsNewGroupModalOpen] = useState(false);
   const [newGroupNameInput, setNewGroupNameInput] = useState('');
 
+  // Presets Modal State
+  const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
+
+  // Test Runner Drawer State
+  const [testResult, setTestResult] = useState<{
+    ruleName: string;
+    url: string;
+    status: number;
+    timeMs: number;
+    headers: Record<string, string>;
+    body: string;
+  } | null>(null);
+  const [isTestingRule, setIsTestingRule] = useState(false);
+
   // Form State
-  const [formName, setFormName] = useState('New Rewrite Rule');
-  const [formType, setFormType] = useState<RuleType>('rewrite');
-  const [formGroup, setFormGroup] = useState('Debugging & Headers');
-  const [formTags, setFormTags] = useState('debug, custom');
-  const [formMatchUrl, setFormMatchUrl] = useState('https://httpbin.org/*');
+  const [formName, setFormName] = useState('New API Mock Endpoint');
+  const [formType, setFormType] = useState<RuleType>('mock_server');
+  const [formMethod, setFormMethod] = useState<HttpMethod | 'ALL'>('GET');
+  const [formGroup, setFormGroup] = useState('API Mock Endpoints');
+  const [formTags, setFormTags] = useState('mock-server, v1, json');
+  const [formMatchUrl, setFormMatchUrl] = useState('/api/mock/v1/users/*');
   const [formStatusCode, setFormStatusCode] = useState<number>(200);
-  const [formBodyReplace, setFormBodyReplace] = useState('{\n  "mockedBy": "Reqable MITM Engine"\n}');
-  const [formDelayMs, setFormDelayMs] = useState<number>(1000);
+  const [formContentType, setFormContentType] = useState<string>('application/json');
+  const [formBodyReplace, setFormBodyReplace] = useState(
+    JSON.stringify(
+      {
+        id: '{{$guid}}',
+        name: '{{$randomName}}',
+        email: '{{$randomEmail}}',
+        status: 'ACTIVE',
+        createdAt: '{{$timestamp}}',
+      },
+      null,
+      2
+    )
+  );
+  const [formDelayMs, setFormDelayMs] = useState<number>(100);
+  const [formFailureRate, setFormFailureRate] = useState<number>(0);
+  const [formHeadersToAdd, setFormHeadersToAdd] = useState<KeyValuePair[]>([
+    { id: 'h1', key: 'X-Mock-Engine', value: 'Reqable-Server', enabled: true },
+  ]);
 
   const triggerNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
@@ -263,23 +342,31 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
     }, 4500);
   };
 
-  // Extract all unique group names across rules
+  // Extract unique groups & tags
   const allGroups = useMemo(() => {
     return Array.from(
       new Set(rules.map((r) => r.group).filter((g): g is string => Boolean(g)))
     ).sort();
   }, [rules]);
 
-  // Extract all unique tags
   const allTags = useMemo(() => {
-    return Array.from(
-      new Set(rules.flatMap((r) => r.tags || []))
-    ).sort();
+    return Array.from(new Set(rules.flatMap((r) => r.tags || []))).sort();
   }, [rules]);
 
-  // Filter rules based on search & tag selection
+  // Filter rules
   const filteredRules = useMemo(() => {
     return rules.filter((r) => {
+      // Type Filter
+      if (ruleTypeFilter === 'mock_server' && r.type !== 'mock_server' && r.type !== 'map_local') {
+        return false;
+      }
+      if (
+        ruleTypeFilter === 'interception' &&
+        (r.type === 'mock_server' || r.type === 'map_local')
+      ) {
+        return false;
+      }
+
       const matchesSearch =
         !searchQuery.trim() ||
         r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -291,9 +378,9 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
 
       return matchesSearch && matchesTag;
     });
-  }, [rules, searchQuery, selectedTag]);
+  }, [rules, ruleTypeFilter, searchQuery, selectedTag]);
 
-  // Compute grouped rules
+  // Grouped rules computation
   const groupedRules = useMemo(() => {
     if (groupBy === 'none') {
       return [{ title: 'All Rules', key: 'all', rules: filteredRules }];
@@ -331,6 +418,7 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
 
     if (groupBy === 'type') {
       const typeLabels: Record<RuleType, string> = {
+        mock_server: '⚡ API Mock Server Endpoints',
         rewrite: 'URL Rewrite & Header Injection',
         breakpoint: 'Breakpoint Intercept',
         map_local: 'Map Local File Mock',
@@ -382,18 +470,6 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
     }));
   };
 
-  const expandAllFolders = () => {
-    setCollapsedFolders({});
-  };
-
-  const collapseAllFolders = () => {
-    const next: Record<string, boolean> = {};
-    groupedRules.forEach((g) => {
-      next[g.key] = true;
-    });
-    setCollapsedFolders(next);
-  };
-
   const handleExportRules = () => {
     if (rules.length === 0) {
       triggerNotification('error', 'No rules available to export.');
@@ -402,22 +478,10 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
 
     const exportPayload = {
       version: '1.0',
-      app: 'Reqable MITM Proxy Rules',
+      app: 'Reqable MITM & API Mock Engine',
       exportedAt: new Date().toISOString(),
       totalRules: rules.length,
-      rules: rules.map((r) => ({
-        id: r.id,
-        name: r.name,
-        type: r.type,
-        group: r.group,
-        tags: r.tags,
-        enabled: r.enabled,
-        matchUrl: r.matchUrl,
-        matchMethod: r.matchMethod || 'ALL',
-        matchStatus: r.matchStatus,
-        hitCount: r.hitCount || 0,
-        action: r.action,
-      })),
+      rules,
     };
 
     const jsonString = JSON.stringify(exportPayload, null, 2);
@@ -426,7 +490,7 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
     const link = document.createElement('a');
     link.href = url;
     const dateStr = new Date().toISOString().split('T')[0];
-    link.download = `reqable-rules-${dateStr}.json`;
+    link.download = `reqable-mock-rules-${dateStr}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -434,7 +498,7 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
 
     triggerNotification(
       'success',
-      `Exported ${rules.length} rule${rules.length === 1 ? '' : 's'} to JSON file!`
+      `Exported ${rules.length} rule${rules.length === 1 ? '' : 's'} to JSON!`
     );
   };
 
@@ -460,66 +524,38 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
         }
 
         const sanitizedRules: TrafficRule[] = importedArray.map((r: any, idx: number) => ({
-          id: r.id && typeof r.id === 'string'
-            ? `imported-${r.id}-${Date.now().toString(36).substring(2, 5)}`
-            : `imported-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`,
+          id: r.id && typeof r.id === 'string' ? r.id : `imp-${Date.now()}-${idx}`,
           name: String(r.name || `Imported Rule #${idx + 1}`),
           enabled: Boolean(r.enabled ?? true),
-          type: ['rewrite', 'breakpoint', 'map_local', 'delay', 'script'].includes(r.type)
+          type: ['rewrite', 'breakpoint', 'map_local', 'delay', 'mock_server'].includes(r.type)
             ? r.type
-            : 'rewrite',
+            : 'mock_server',
           group: r.group ? String(r.group) : undefined,
           tags: Array.isArray(r.tags) ? r.tags.map(String) : undefined,
           matchUrl: String(r.matchUrl || '*'),
           matchMethod: r.matchMethod || 'ALL',
-          matchStatus: r.matchStatus ? Number(r.matchStatus) : undefined,
           hitCount: typeof r.hitCount === 'number' ? r.hitCount : 0,
           action: {
             statusCode: r.action?.statusCode ? Number(r.action.statusCode) : 200,
+            contentType: r.action?.contentType ? String(r.action.contentType) : 'application/json',
             headersToAdd: Array.isArray(r.action?.headersToAdd) ? r.action.headersToAdd : undefined,
             bodyReplace: r.action?.bodyReplace ? String(r.action.bodyReplace) : undefined,
-            mapLocalFile: r.action?.mapLocalFile ? String(r.action.mapLocalFile) : undefined,
             delayMs: r.action?.delayMs ? Number(r.action.delayMs) : undefined,
+            failureRate: r.action?.failureRate ? Number(r.action.failureRate) : undefined,
           },
         }));
 
         setRules((prev) => [...sanitizedRules, ...prev]);
-
-        for (const rule of sanitizedRules) {
-          try {
-            await fetch('/api/rules', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(rule),
-            });
-          } catch (err) {
-            console.error('Failed to sync rule to API:', err);
-          }
-        }
-
-        triggerNotification(
-          'success',
-          `Batch imported ${sanitizedRules.length} rule${sanitizedRules.length === 1 ? '' : 's'} successfully!`
-        );
+        triggerNotification('success', `Imported ${sanitizedRules.length} rules successfully!`);
       } catch (err) {
-        console.error('JSON parsing error during rule import:', err);
-        triggerNotification('error', 'Failed to parse JSON file. Please ensure it is valid JSON.');
-      } finally {
-        if (e.target) {
-          e.target.value = '';
-        }
+        triggerNotification('error', 'Failed to parse JSON file.');
       }
     };
-
     reader.readAsText(file);
   };
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5,
-      },
-    }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor)
   );
 
@@ -534,59 +570,91 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
     }
   };
 
-  const handleTriggerHit = (ruleId: string) => {
-    setRules((prevRules) =>
-      prevRules.map((r) => (r.id === ruleId ? { ...r, hitCount: (r.hitCount || 0) + 1 } : r))
-    );
-  };
-
   const handleToggleRule = async (ruleId: string) => {
     const updated = rules.map((r) => (r.id === ruleId ? { ...r, enabled: !r.enabled } : r));
     setRules(updated);
-    const target = updated.find((r) => r.id === ruleId);
-    if (target) {
-      try {
-        await fetch(`/api/rules/${ruleId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(target),
-        });
-      } catch (err) {
-        console.error(err);
-      }
-    }
   };
 
   const handleToggleAllInGroup = async (groupRules: TrafficRule[], enable: boolean) => {
     const targetIds = new Set(groupRules.map((r) => r.id));
     const updated = rules.map((r) => (targetIds.has(r.id) ? { ...r, enabled: enable } : r));
     setRules(updated);
-    triggerNotification('success', `${enable ? 'Enabled' : 'Disabled'} ${groupRules.length} rule(s) in group.`);
+    triggerNotification('success', `${enable ? 'Enabled' : 'Disabled'} ${groupRules.length} rule(s).`);
   };
 
   const handleAssignGroup = async (ruleId: string, groupName: string) => {
     const updated = rules.map((r) => (r.id === ruleId ? { ...r, group: groupName || undefined } : r));
     setRules(updated);
-    const target = updated.find((r) => r.id === ruleId);
-    if (target) {
-      try {
-        await fetch(`/api/rules/${ruleId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(target),
-        });
-      } catch (err) {
-        console.error(err);
-      }
-    }
   };
 
   const handleDeleteRule = async (ruleId: string) => {
     setRules(rules.filter((r) => r.id !== ruleId));
+  };
+
+  const handleCopyMockUrl = (rule: TrafficRule) => {
+    let mockPath = rule.matchUrl;
+    if (!mockPath.startsWith('http://') && !mockPath.startsWith('https://')) {
+      if (!mockPath.startsWith('/')) mockPath = '/' + mockPath;
+      if (!mockPath.startsWith('/api/mock/')) {
+        mockPath = '/api/mock' + mockPath;
+      }
+    }
+    const fullUrl = `${window.location.origin}${mockPath.replace(/\*/g, '123')}`;
+    navigator.clipboard.writeText(fullUrl);
+    triggerNotification('success', `Copied Mock URL: ${fullUrl}`);
+  };
+
+  const handleRunTestEndpoint = async (rule: TrafficRule) => {
+    setIsTestingRule(true);
+    const startTime = Date.now();
+    let targetUrl = rule.matchUrl;
+
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      if (!targetUrl.startsWith('/')) targetUrl = '/' + targetUrl;
+      targetUrl = targetUrl.replace(/\*/g, '101');
+      if (!targetUrl.startsWith('/api/mock/')) {
+        targetUrl = '/api/mock' + targetUrl;
+      }
+    }
+
     try {
-      await fetch(`/api/rules/${ruleId}`, { method: 'DELETE' });
+      const method = rule.matchMethod && rule.matchMethod !== 'ALL' ? rule.matchMethod : 'GET';
+      const res = await fetch(targetUrl, { method });
+      const duration = Date.now() - startTime;
+      const resText = await res.text();
+      const resHeaders: Record<string, string> = {};
+      res.headers.forEach((v, k) => {
+        resHeaders[k] = v;
+      });
+
+      setTestResult({
+        ruleName: rule.name,
+        url: targetUrl,
+        status: res.status,
+        timeMs: duration,
+        headers: resHeaders,
+        body: resText,
+      });
+
+      // Increment hit count
+      setRules((prev) =>
+        prev.map((r) => (r.id === rule.id ? { ...r, hitCount: (r.hitCount || 0) + 1 } : r))
+      );
+
+      triggerNotification('success', `Tested mock endpoint: Status ${res.status} (${duration}ms)`);
     } catch (err) {
-      console.error(err);
+      const duration = Date.now() - startTime;
+      setTestResult({
+        ruleName: rule.name,
+        url: targetUrl,
+        status: 500,
+        timeMs: duration,
+        headers: {},
+        body: JSON.stringify({ error: 'Failed to execute mock request', details: String(err) }, null, 2),
+      });
+      triggerNotification('error', `Failed to send request: ${String(err)}`);
+    } finally {
+      setIsTestingRule(false);
     }
   };
 
@@ -594,13 +662,33 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
     setEditingRule(rule);
     setFormName(rule.name);
     setFormType(rule.type);
-    setFormGroup(rule.group || 'Debugging & Headers');
+    setFormMethod(rule.matchMethod || 'GET');
+    setFormGroup(rule.group || 'API Mock Endpoints');
     setFormTags(rule.tags ? rule.tags.join(', ') : '');
     setFormMatchUrl(rule.matchUrl);
     setFormStatusCode(rule.action.statusCode || 200);
-    setFormBodyReplace(rule.action.bodyReplace || '{\n  "mockedBy": "Reqable MITM Engine"\n}');
-    setFormDelayMs(rule.action.delayMs || 1000);
+    setFormContentType(rule.action.contentType || 'application/json');
+    setFormBodyReplace(
+      rule.action.bodyReplace || '{\n  "message": "Mock response from Reqable Server"\n}'
+    );
+    setFormDelayMs(rule.action.delayMs || 100);
+    setFormFailureRate(rule.action.failureRate || 0);
+    setFormHeadersToAdd(rule.action.headersToAdd || []);
     setIsModalOpen(true);
+  };
+
+  const handleFormatJson = () => {
+    try {
+      const parsed = JSON.parse(formBodyReplace);
+      setFormBodyReplace(JSON.stringify(parsed, null, 2));
+      triggerNotification('success', 'JSON body formatted cleanly!');
+    } catch {
+      triggerNotification('error', 'Invalid JSON payload. Check syntax.');
+    }
+  };
+
+  const handleInsertVariable = (varName: string) => {
+    setFormBodyReplace((prev) => prev + varName);
   };
 
   const handleSaveRule = async () => {
@@ -617,12 +705,15 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
       group: formGroup.trim() || undefined,
       tags: parsedTags.length > 0 ? parsedTags : undefined,
       matchUrl: formMatchUrl,
-      matchMethod: 'ALL',
+      matchMethod: formMethod,
       hitCount: editingRule ? editingRule.hitCount : 0,
       action: {
         statusCode: formStatusCode,
+        contentType: formContentType,
         bodyReplace: formBodyReplace,
         delayMs: formDelayMs,
+        failureRate: formFailureRate,
+        headersToAdd: formHeadersToAdd,
       },
     };
 
@@ -643,39 +734,61 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
 
     setIsModalOpen(false);
     setEditingRule(null);
+    triggerNotification('success', `Saved rule "${formName}"!`);
   };
 
-  const handleCreateNewGroupFolder = () => {
-    if (!newGroupNameInput.trim()) return;
-    const gName = newGroupNameInput.trim();
-    // Pre-fill form group to this name and open rule creation
+  const handleLoadPreset = (preset: {
+    name: string;
+    type: RuleType;
+    method: HttpMethod | 'ALL';
+    group: string;
+    tags: string[];
+    matchUrl: string;
+    statusCode: number;
+    contentType: string;
+    delayMs: number;
+    body: string;
+  }) => {
     setEditingRule(null);
-    setFormName(`${gName} Mock Rule`);
-    setFormGroup(gName);
-    setFormTags(gName.toLowerCase().replace(/\s+/g, '-'));
-    setIsNewGroupModalOpen(false);
-    setNewGroupNameInput('');
+    setFormName(preset.name);
+    setFormType(preset.type);
+    setFormMethod(preset.method);
+    setFormGroup(preset.group);
+    setFormTags(preset.tags.join(', '));
+    setFormMatchUrl(preset.matchUrl);
+    setFormStatusCode(preset.statusCode);
+    setFormContentType(preset.contentType);
+    setFormDelayMs(preset.delayMs);
+    setFormBodyReplace(preset.body);
+    setIsPresetsModalOpen(false);
     setIsModalOpen(true);
-    triggerNotification('success', `Created folder group "${gName}". Create a rule inside it!`);
   };
 
   return (
     <div id="rules-engine-view" className="h-[calc(100vh-53px)] bg-slate-950 text-slate-200 p-6 overflow-y-auto">
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header Title & Intro */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
-          <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Shield className="w-5 h-5 text-sky-400" />
-              <span>MITM Traffic Interception Rules</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Configure Breakpoints, URL Rewrites, Map Local mocks, Network Delays, and Custom Scripts grouped in collapsible folders.
-            </p>
+        {/* Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl overflow-hidden border border-emerald-500/40 shadow-lg shadow-emerald-500/20 shrink-0 bg-slate-900">
+              <img
+                src={mockRulesEnginePreviewImg}
+                alt="Reqable Mock Rules Engine Visual"
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <span>Rules Engine & API Mock Server</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Simulate backend API endpoints with custom response bodies, dynamic variables, network latency, and chaos engineering.
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {/* Hidden File Input for Batch Import */}
             <input
               type="file"
               ref={fileInputRef}
@@ -685,52 +798,51 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
             />
 
             <button
-              onClick={() => setIsNewGroupModalOpen(true)}
-              className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 hover:text-white text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
-              title="Add new folder group"
+              onClick={() => setIsPresetsModalOpen(true)}
+              className="bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+              title="Load pre-built API Mock presets"
             >
-              <FolderPlus className="w-4 h-4 text-amber-400" />
-              <span>New Folder</span>
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <span>Mock Presets</span>
             </button>
 
             <button
               onClick={handleExportRules}
               className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 hover:text-white text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
-              title="Export all current rules as a JSON file"
             >
               <Download className="w-4 h-4 text-sky-400" />
-              <span>Export JSON</span>
+              <span>Export</span>
             </button>
 
             <button
               onClick={() => fileInputRef.current?.click()}
               className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 hover:text-white text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
-              title="Batch import rules from a JSON file"
             >
               <Upload className="w-4 h-4 text-emerald-400" />
-              <span>Import JSON</span>
+              <span>Import</span>
             </button>
 
             <button
               id="btn-create-rule"
               onClick={() => {
                 setEditingRule(null);
-                setFormName('New Rewrite Rule');
-                setFormType('rewrite');
-                setFormMatchUrl('https://httpbin.org/*');
-                setFormGroup(allGroups[0] || 'Debugging & Headers');
-                setFormTags('debug');
+                setFormName('New API Mock Endpoint');
+                setFormType('mock_server');
+                setFormMethod('GET');
+                setFormMatchUrl('/api/mock/v1/users/*');
+                setFormGroup('API Mock Endpoints');
+                setFormTags('mock-server, v1');
                 setIsModalOpen(true);
               }}
-              className="bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 shadow-md shadow-sky-600/20"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
             >
               <Plus className="w-4 h-4" />
-              <span>Create Rule</span>
+              <span>Create Mock Endpoint</span>
             </button>
           </div>
         </div>
 
-        {/* Notification Toast Banner */}
+        {/* Notification Toast */}
         {notification && (
           <div
             className={`p-3 rounded-lg border flex items-center justify-between gap-3 text-xs shadow-lg transition-all ${
@@ -747,261 +859,121 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
               )}
               <span className="font-medium">{notification.message}</span>
             </div>
-            <button
-              onClick={() => setNotification(null)}
-              className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-900/50"
-            >
-              <X className="w-3.5 h-3.5" />
+            <button onClick={() => setNotification(null)} className="text-slate-400 hover:text-white">
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* Rule Type Categories Overview Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-          <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg">
-            <div className="font-bold text-sky-400 flex items-center gap-1.5 mb-1">
-              <Shield className="w-4 h-4" /> Breakpoints
-            </div>
-            <p className="text-slate-400 text-[11px]">Pause and edit live requests/responses before forwarding.</p>
+        {/* Analytics Section */}
+        <RulesAnalyticsWidget rules={rules} />
+
+        {/* Filter Bar & Sub-Tabs */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
+          {/* Sub-tab view filter */}
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+            <button
+              onClick={() => setRuleTypeFilter('all')}
+              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                ruleTypeFilter === 'all'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              All Rules ({rules.length})
+            </button>
+            <button
+              onClick={() => setRuleTypeFilter('mock_server')}
+              className={`px-3 py-1.5 rounded-md font-semibold transition-all flex items-center gap-1.5 ${
+                ruleTypeFilter === 'mock_server'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Server className="w-3.5 h-3.5" />
+              <span>API Mock Endpoints</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 border border-slate-700 text-emerald-300 font-mono">
+                {rules.filter((r) => r.type === 'mock_server' || r.type === 'map_local').length}
+              </span>
+            </button>
+            <button
+              onClick={() => setRuleTypeFilter('interception')}
+              className={`px-3 py-1.5 rounded-md font-semibold transition-all flex items-center gap-1.5 ${
+                ruleTypeFilter === 'interception'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>MITM Interceptors</span>
+            </button>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg">
-            <div className="font-bold text-purple-400 flex items-center gap-1.5 mb-1">
-              <Globe className="w-4 h-4" /> URL Rewrites
-            </div>
-            <p className="text-slate-400 text-[11px]">Automatically inject headers or rewrite body payloads on the fly.</p>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg">
-            <div className="font-bold text-emerald-400 flex items-center gap-1.5 mb-1">
-              <FileCode className="w-4 h-4" /> Map Local
-            </div>
-            <p className="text-slate-400 text-[11px]">Substitute remote API responses with local mock JSON files.</p>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg">
-            <div className="font-bold text-amber-400 flex items-center gap-1.5 mb-1">
-              <Clock className="w-4 h-4" /> Delay & Throttling
-            </div>
-            <p className="text-slate-400 text-[11px]">Simulate 3G/4G network latency and slow connection speeds.</p>
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search mock endpoints by path, title, tag, or folder..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-sky-500"
+            />
           </div>
         </div>
 
-        {/* Recharts Analytics Bar Chart Widget */}
-        <RulesAnalyticsWidget rules={rules} onTriggerHit={handleTriggerHit} />
-
-        {/* Grouping & Search Toolbar */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            {/* Search Input */}
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search rules by title, URL pattern, group, or #tag..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Grouping Mode Selector */}
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5 text-sky-400" />
-                <span>Group By:</span>
-              </span>
-              <div className="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center gap-1 text-xs">
-                <button
-                  onClick={() => setGroupBy('folder')}
-                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
-                    groupBy === 'folder'
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Folders
-                </button>
-                <button
-                  onClick={() => setGroupBy('type')}
-                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
-                    groupBy === 'type'
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Type
-                </button>
-                <button
-                  onClick={() => setGroupBy('status')}
-                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
-                    groupBy === 'status'
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Status
-                </button>
-                <button
-                  onClick={() => setGroupBy('none')}
-                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
-                    groupBy === 'none'
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Flat List
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Tag Filter & Collapse Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-xs">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 mr-1">
-                <Tag className="w-3 h-3 text-emerald-400" /> Filter Tag:
-              </span>
-              <button
-                onClick={() => setSelectedTag(null)}
-                className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                  selectedTag === null
-                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold'
-                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
-                }`}
-              >
-                All Tags
-              </button>
-              {allTags.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                    selectedTag === tag
-                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold'
-                      : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
-                  }`}
-                >
-                  #{tag}
-                </button>
-              ))}
-            </div>
-
-            {groupBy !== 'none' && (
-              <div className="flex items-center gap-2 text-[11px]">
-                <button
-                  onClick={expandAllFolders}
-                  className="text-slate-400 hover:text-sky-400 transition-colors"
-                >
-                  Expand All
-                </button>
-                <span className="text-slate-700">|</span>
-                <button
-                  onClick={collapseAllFolders}
-                  className="text-slate-400 hover:text-sky-400 transition-colors"
-                >
-                  Collapse All
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Active Rules List / Collapsible Folder Groups */}
+        {/* Rules List by Folders */}
         <div className="space-y-4">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             {groupedRules.map((group) => {
-              const isCollapsed = Boolean(collapsedFolders[group.key]);
+              const isCollapsed = collapsedFolders[group.key];
               const groupEnabledCount = group.rules.filter((r) => r.enabled).length;
-              const groupTotalHits = group.rules.reduce((acc, r) => acc + (r.hitCount || 0), 0);
 
               return (
                 <div
                   key={group.key}
-                  className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden shadow-sm"
+                  className="bg-slate-900/60 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm"
                 >
-                  {/* Folder Header */}
-                  {groupBy !== 'none' && (
-                    <div className="p-3.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-3 select-none">
-                      <div
-                        onClick={() => toggleFolderCollapse(group.key)}
-                        className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0"
-                      >
-                        <button className="text-slate-400 hover:text-white">
-                          {isCollapsed ? (
-                            <ChevronRight className="w-4 h-4 text-slate-500" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-sky-400" />
-                          )}
-                        </button>
-
-                        {isCollapsed ? (
-                          <Folder className="w-4 h-4 text-amber-400 shrink-0" />
-                        ) : (
-                          <FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />
-                        )}
-
-                        <span className="font-bold text-sm text-slate-100 truncate">
-                          {group.title}
-                        </span>
-
-                        <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-slate-950 text-slate-400 border border-slate-800 shrink-0">
-                          {group.rules.length} {group.rules.length === 1 ? 'rule' : 'rules'}
-                        </span>
-
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 text-emerald-400 border border-slate-800 shrink-0">
-                          {groupEnabledCount} active
-                        </span>
-
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 text-sky-400 border border-slate-800 shrink-0 hidden sm:inline">
-                          {groupTotalHits} hits
-                        </span>
-                      </div>
-
-                      {/* Folder Group Actions */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => handleToggleAllInGroup(group.rules, true)}
-                          className="text-[10px] font-medium font-mono px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 text-emerald-400 border border-slate-800 transition-colors"
-                          title="Enable all rules in this group"
-                        >
-                          Enable All
-                        </button>
-                        <button
-                          onClick={() => handleToggleAllInGroup(group.rules, false)}
-                          className="text-[10px] font-medium font-mono px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800 transition-colors"
-                          title="Disable all rules in this group"
-                        >
-                          Disable All
-                        </button>
-                      </div>
+                  <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3">
+                    <div
+                      onClick={() => toggleFolderCollapse(group.key)}
+                      className="flex items-center gap-2 cursor-pointer hover:text-sky-300 transition-colors flex-1 min-w-0"
+                    >
+                      {isCollapsed ? (
+                        <Folder className="w-4 h-4 text-amber-400 shrink-0" />
+                      ) : (
+                        <FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />
+                      )}
+                      <span className="font-bold text-sm text-slate-100 truncate">{group.title}</span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 text-slate-400 border border-slate-800 shrink-0">
+                        {group.rules.length} {group.rules.length === 1 ? 'rule' : 'rules'}
+                      </span>
                     </div>
-                  )}
 
-                  {/* Folder Body Rules List */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleToggleAllInGroup(group.rules, true)}
+                        className="text-[10px] font-mono px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 text-emerald-400 border border-slate-800"
+                      >
+                        Enable All
+                      </button>
+                      <button
+                        onClick={() => handleToggleAllInGroup(group.rules, false)}
+                        className="text-[10px] font-mono px-2 py-1 rounded bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800"
+                      >
+                        Disable All
+                      </button>
+                    </div>
+                  </div>
+
                   {!isCollapsed && (
                     <div className="p-3">
                       {group.rules.length === 0 ? (
                         <div className="p-4 text-center text-xs text-slate-500 font-mono">
-                          No rules match the current filters in this group.
+                          No rules match the current filters in this folder.
                         </div>
                       ) : (
-                        <SortableContext
-                          items={group.rules.map((r) => r.id)}
-                          strategy={verticalListSortingStrategy}
-                        >
+                        <SortableContext items={group.rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
                           <div className="space-y-2.5">
                             {group.rules.map((rule, idx) => (
                               <SortableRuleItem
@@ -1013,6 +985,8 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
                                 handleDeleteRule={handleDeleteRule}
                                 handleEditRule={handleEditRule}
                                 handleAssignGroup={handleAssignGroup}
+                                handleRunTestEndpoint={handleRunTestEndpoint}
+                                handleCopyMockUrl={handleCopyMockUrl}
                               />
                             ))}
                           </div>
@@ -1027,78 +1001,224 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
         </div>
       </div>
 
-      {/* NEW FOLDER GROUP MODAL */}
-      {isNewGroupModalOpen && (
+      {/* TEST MOCK ENDPOINT RESULT MODAL */}
+      {testResult && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-              <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
-                <FolderPlus className="w-4 h-4 text-amber-400" />
-                <span>Create New Folder Group</span>
-              </h3>
-              <button onClick={() => setIsNewGroupModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <label className="block text-slate-400 font-semibold">Folder / Group Name</label>
-              <input
-                type="text"
-                value={newGroupNameInput}
-                onChange={(e) => setNewGroupNameInput(e.target.value)}
-                placeholder="e.g. Auth Service, Payment Gateway, Rate Limits..."
-                className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-sky-500"
-                autoFocus
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-slate-800 pt-3">
-              <button
-                onClick={() => setIsNewGroupModalOpen(false)}
-                className="px-3.5 py-1.5 rounded bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700"
-              >
-                Cancel
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Play className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-bold text-slate-100 text-sm">
+                  Live Mock Response Test — {testResult.ruleName}
+                </h3>
+              </div>
+              <button onClick={() => setTestResult(null)} className="text-slate-400 hover:text-white">
+                ✕
               </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 font-mono">
+                <span className="text-slate-400 truncate max-w-md">{testResult.url}</span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      testResult.status === 200 || testResult.status === 201
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                        : 'bg-rose-950 text-rose-400 border border-rose-800'
+                    }`}
+                  >
+                    STATUS {testResult.status}
+                  </span>
+                  <span className="text-slate-400 text-[10px]">{testResult.timeMs}ms</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">Response Body Payload</label>
+                <textarea
+                  readOnly
+                  rows={8}
+                  value={testResult.body}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-3 font-mono text-emerald-300 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end border-t border-slate-800 pt-3">
               <button
-                onClick={handleCreateNewGroupFolder}
-                className="px-3.5 py-1.5 rounded bg-sky-600 text-white text-xs font-semibold hover:bg-sky-500 shadow-md shadow-sky-600/20"
+                onClick={() => setTestResult(null)}
+                className="px-4 py-2 rounded bg-slate-800 text-slate-200 text-xs font-semibold hover:bg-slate-700"
               >
-                Create Group
+                Close Test Window
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* CREATE / EDIT RULE MODAL */}
-      {isModalOpen && (
+      {/* PRESETS MODAL */}
+      {isPresetsModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-slate-100 text-sm">
-                {editingRule ? 'Edit MITM Interception Rule' : 'Create MITM Interception Rule'}
+              <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span>Select Pre-built API Mock Preset</span>
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setIsPresetsModalOpen(false)} className="text-slate-400 hover:text-white">
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              {[
+                {
+                  name: 'User Profile GET API',
+                  type: 'mock_server' as RuleType,
+                  method: 'GET' as const,
+                  group: 'API Mock Endpoints',
+                  tags: ['users', 'mock', 'v1'],
+                  matchUrl: '/api/mock/v1/users/*',
+                  statusCode: 200,
+                  contentType: 'application/json',
+                  delayMs: 150,
+                  body: JSON.stringify(
+                    {
+                      id: '{{$guid}}',
+                      name: '{{$randomName}}',
+                      email: '{{$randomEmail}}',
+                      role: 'Lead Full-Stack Developer',
+                      status: 'ACTIVE',
+                      updatedAt: '{{$timestamp}}',
+                    },
+                    null,
+                    2
+                  ),
+                },
+                {
+                  name: 'Auth JWT Login POST API',
+                  type: 'mock_server' as RuleType,
+                  method: 'POST' as const,
+                  group: 'API Mock Endpoints',
+                  tags: ['auth', 'login', 'token'],
+                  matchUrl: '/api/mock/v1/auth/login',
+                  statusCode: 200,
+                  contentType: 'application/json',
+                  delayMs: 200,
+                  body: JSON.stringify(
+                    {
+                      token_type: 'Bearer',
+                      access_token: 'reqable_jwt_{{$guid}}',
+                      expires_in: 3600,
+                      refresh_token: 'reqable_refresh_{{$guid}}',
+                      issued_at: '{{$timestamp}}',
+                    },
+                    null,
+                    2
+                  ),
+                },
+                {
+                  name: 'E-Commerce Products GET Catalog',
+                  type: 'mock_server' as RuleType,
+                  method: 'GET' as const,
+                  group: 'API Mock Endpoints',
+                  tags: ['products', 'catalog', 'json'],
+                  matchUrl: '/api/mock/v1/products',
+                  statusCode: 200,
+                  contentType: 'application/json',
+                  delayMs: 100,
+                  body: JSON.stringify(
+                    {
+                      total: 2,
+                      products: [
+                        { id: 'p-1', name: 'Reqable Pro Key', price: '{{$randomPrice}}', stock: 100 },
+                        { id: 'p-2', name: 'MITM Hardware Proxy', price: '{{$randomPrice}}', stock: 25 },
+                      ],
+                    },
+                    null,
+                    2
+                  ),
+                },
+                {
+                  name: '500 Server Error Simulation',
+                  type: 'mock_server' as RuleType,
+                  method: 'ALL' as const,
+                  group: 'Error Simulations',
+                  tags: ['error', '500', 'chaos'],
+                  matchUrl: '/api/mock/v1/error/500',
+                  statusCode: 500,
+                  contentType: 'application/json',
+                  delayMs: 300,
+                  body: JSON.stringify(
+                    {
+                      error: 'InternalServerError',
+                      message: 'Simulated 500 server crash from Reqable Mock Engine',
+                      timestamp: '{{$timestamp}}',
+                    },
+                    null,
+                    2
+                  ),
+                },
+              ].map((p, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => handleLoadPreset(p)}
+                  className="p-3 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500/50 cursor-pointer transition-all flex items-center justify-between gap-3 group"
+                >
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-xs text-slate-200 group-hover:text-emerald-300">
+                      {p.name}
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-500">
+                      {p.method} {p.matchUrl}
+                    </div>
+                  </div>
+                  <span className="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] text-emerald-400 font-mono font-bold">
+                    Load
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE / EDIT MOCK RULE MODAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xl w-full p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                <Server className="w-4 h-4 text-emerald-400" />
+                <span>{editingRule ? 'Edit Mock / Interceptor Rule' : 'Create API Mock Server Rule'}</span>
+              </h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">
+                ✕
+              </button>
             </div>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">Rule Title</label>
+                <label className="block text-slate-400 mb-1 font-semibold">Rule / Endpoint Title</label>
                 <input
                   type="text"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-sky-500"
+                  placeholder="e.g. User Profile API Endpoint"
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">Rule Type</label>
+                  <label className="block text-slate-400 mb-1 font-semibold">Rule Category / Type</label>
                   <select
                     value={formType}
                     onChange={(e) => setFormType(e.target.value as RuleType)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-sky-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
                   >
+                    <option value="mock_server">⚡ API Mock Server Endpoint</option>
                     <option value="rewrite">URL Rewrite / Header Injection</option>
                     <option value="breakpoint">Breakpoint Intercept</option>
                     <option value="map_local">Map Local Mock File</option>
@@ -1107,48 +1227,99 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">Folder Group</label>
-                  <input
-                    type="text"
-                    list="group-suggestions"
-                    value={formGroup}
-                    onChange={(e) => setFormGroup(e.target.value)}
-                    placeholder="e.g. Debugging & Headers"
-                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-sky-500"
-                  />
-                  <datalist id="group-suggestions">
-                    {allGroups.map((g) => (
-                      <option key={g} value={g} />
-                    ))}
-                  </datalist>
+                  <label className="block text-slate-400 mb-1 font-semibold">HTTP Method Match</label>
+                  <select
+                    value={formMethod}
+                    onChange={(e) => setFormMethod(e.target.value as HttpMethod | 'ALL')}
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="ALL">ALL Methods (*)</option>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="OPTIONS">OPTIONS</option>
+                  </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">Tags (Comma Separated)</label>
-                <input
-                  type="text"
-                  value={formTags}
-                  onChange={(e) => setFormTags(e.target.value)}
-                  placeholder="e.g. debug, headers, payment, auth"
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-sky-500 font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">Match URL Pattern (Glob or Regex)</label>
+                <label className="block text-slate-400 mb-1 font-semibold">Mock Endpoint Path / Match URL Pattern</label>
                 <input
                   type="text"
                   value={formMatchUrl}
                   onChange={(e) => setFormMatchUrl(e.target.value)}
-                  placeholder="e.g. https://httpbin.org/* or */checkout*"
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 font-mono text-slate-100 focus:outline-none focus:border-sky-500"
+                  placeholder="e.g. /api/mock/v1/users/* or https://httpbin.org/*"
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 font-mono text-slate-100 focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
-              {formType === 'delay' && (
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">Delay Latency (ms)</label>
+                  <label className="block text-slate-400 mb-1 font-semibold">Folder / Group Name</label>
+                  <input
+                    type="text"
+                    value={formGroup}
+                    onChange={(e) => setFormGroup(e.target.value)}
+                    placeholder="e.g. API Mock Endpoints"
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">Tags (Comma Separated)</label>
+                  <input
+                    type="text"
+                    value={formTags}
+                    onChange={(e) => setFormTags(e.target.value)}
+                    placeholder="e.g. users, mock, v1"
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 font-mono text-slate-100 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Status Code & Content Type */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">Mock Response Status Code</label>
+                  <select
+                    value={formStatusCode}
+                    onChange={(e) => setFormStatusCode(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 font-mono text-slate-100"
+                  >
+                    <option value={200}>200 OK</option>
+                    <option value={201}>201 Created</option>
+                    <option value={204}>204 No Content</option>
+                    <option value={400}>400 Bad Request</option>
+                    <option value={401}>401 Unauthorized</option>
+                    <option value={403}>403 Forbidden</option>
+                    <option value={404}>404 Not Found</option>
+                    <option value={422}>422 Unprocessable Entity</option>
+                    <option value={500}>500 Internal Server Error</option>
+                    <option value={503}>503 Service Unavailable</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">Content Type</label>
+                  <select
+                    value={formContentType}
+                    onChange={(e) => setFormContentType(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 font-mono text-slate-100"
+                  >
+                    <option value="application/json">application/json</option>
+                    <option value="text/plain">text/plain</option>
+                    <option value="application/xml">application/xml</option>
+                    <option value="text/html">text/html</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Delay & Chaos Rate */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">Network Delay Latency (ms)</label>
                   <input
                     type="number"
                     value={formDelayMs}
@@ -1156,31 +1327,59 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
                     className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 font-mono text-slate-100"
                   />
                 </div>
-              )}
 
-              {(formType === 'map_local' || formType === 'breakpoint' || formType === 'rewrite') && (
-                <>
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">Mock Status Code</label>
-                    <input
-                      type="number"
-                      value={formStatusCode}
-                      onChange={(e) => setFormStatusCode(Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 font-mono text-slate-100"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">Chaos Failure Rate (%)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={formFailureRate}
+                    onChange={(e) => setFormFailureRate(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 font-mono text-slate-100"
+                  />
+                </div>
+              </div>
 
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">Replacement Body (JSON/Text)</label>
-                    <textarea
-                      value={formBodyReplace}
-                      onChange={(e) => setFormBodyReplace(e.target.value)}
-                      rows={4}
-                      className="w-full bg-slate-950 border border-slate-800 rounded p-3 font-mono text-slate-100 resize-none"
-                    />
-                  </div>
-                </>
-              )}
+              {/* Dynamic Variables helper pills */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-400 font-semibold">Insert Dynamic Template Variables</label>
+                  <button
+                    type="button"
+                    onClick={handleFormatJson}
+                    className="text-[10px] text-emerald-400 hover:text-emerald-300 font-mono underline"
+                  >
+                    Format JSON
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {[
+                    '{{$guid}}',
+                    '{{$timestamp}}',
+                    '{{$randomInt}}',
+                    '{{$randomName}}',
+                    '{{$randomEmail}}',
+                    '{{$randomPrice}}',
+                  ].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => handleInsertVariable(v)}
+                      className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-emerald-400 hover:bg-slate-800"
+                    >
+                      + {v}
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  value={formBodyReplace}
+                  onChange={(e) => setFormBodyReplace(e.target.value)}
+                  rows={6}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-3 font-mono text-emerald-300 resize-none text-xs"
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 border-t border-slate-800 pt-3">
@@ -1192,9 +1391,9 @@ export const RulesEngineTab: React.FC<RulesEngineTabProps> = ({ rules, setRules 
               </button>
               <button
                 onClick={handleSaveRule}
-                className="px-4 py-2 rounded bg-sky-600 text-white text-xs font-semibold hover:bg-sky-500 shadow-md shadow-sky-600/20"
+                className="px-4 py-2 rounded bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-500 shadow-md shadow-emerald-600/20"
               >
-                Save Rule
+                Save Mock Endpoint Rule
               </button>
             </div>
           </div>

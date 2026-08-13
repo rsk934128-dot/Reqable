@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import trafficDebuggerPreviewImg from '../assets/images/traffic_debugger_preview_1786292019481.jpg';
 import {
   Activity,
+  ArrowLeft,
   ArrowRight,
   Filter,
   Play,
@@ -46,6 +48,7 @@ export const ApiDebuggingTab: React.FC<ApiDebuggingTabProps> = ({
   onCreateRuleFromTraffic,
 }) => {
   const [selectedItem, setSelectedItem] = useState<TrafficItem | null>(traffic[0] || null);
+  const [mobileShowDetail, setMobileShowDetail] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchScope, setSearchScope] = useState<'all' | 'url' | 'status_method' | 'body'>('all');
   const [methodFilter, setMethodFilter] = useState<string>('ALL');
@@ -375,7 +378,7 @@ export const ApiDebuggingTab: React.FC<ApiDebuggingTabProps> = ({
   return (
     <div id="api-debugging-view" className="flex h-[calc(100vh-53px)] bg-slate-950 text-slate-200 overflow-hidden">
       {/* Left List Pane: Captured Traffic Items Table */}
-      <div className="flex-1 flex flex-col min-w-0 border-r border-slate-800">
+      <div className={`flex-1 flex-col min-w-0 border-r border-slate-800 ${mobileShowDetail ? 'hidden lg:flex' : 'flex'}`}>
         {/* Main Search & Action Bar */}
         <div id="traffic-toolbar" className="p-3 bg-slate-900/80 border-b border-slate-800 space-y-2.5">
           <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -817,7 +820,10 @@ export const ApiDebuggingTab: React.FC<ApiDebuggingTabProps> = ({
                 filteredTraffic.map((item, idx) => (
                   <tr
                     key={`${item.id}-${idx}`}
-                    onClick={() => setSelectedItem(item)}
+                    onClick={() => {
+                      setSelectedItem(item);
+                      setMobileShowDetail(true);
+                    }}
                     className={`cursor-pointer transition-colors ${
                       selectedItem?.id === item.id
                         ? 'bg-sky-950/70 border-l-2 border-l-sky-500 text-slate-100'
@@ -878,10 +884,18 @@ export const ApiDebuggingTab: React.FC<ApiDebuggingTabProps> = ({
 
       {/* Right Details Inspector Panel */}
       {selectedItem ? (
-        <aside id="traffic-details-panel" className="w-[420px] lg:w-[480px] bg-slate-900/80 border-l border-slate-800 flex flex-col shrink-0 min-h-0">
+        <aside id="traffic-details-panel" className={`w-full lg:w-[420px] xl:w-[480px] bg-slate-900/80 border-l border-slate-800 flex-col shrink-0 min-h-0 ${mobileShowDetail ? 'flex' : 'hidden lg:flex'}`}>
           {/* Detail Header & Action Tools */}
           <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900">
             <div className="flex items-center gap-2 min-w-0">
+              <button
+                onClick={() => setMobileShowDetail(false)}
+                className="lg:hidden p-1 px-2 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                title="Back to Traffic Logs"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
               <span className="font-bold text-xs text-slate-200 shrink-0">{selectedItem.method}</span>
               <span className="text-xs text-slate-400 font-mono truncate" title={selectedItem.url}>
                 {selectedItem.url}
@@ -1061,7 +1075,22 @@ export const ApiDebuggingTab: React.FC<ApiDebuggingTabProps> = ({
             )}
           </div>
         </aside>
-      ) : null}
+      ) : (
+        <aside className="w-[320px] lg:w-[380px] bg-slate-900/60 border-l border-slate-800 p-6 flex flex-col items-center justify-center text-center shrink-0">
+          <div className="w-full max-w-[260px] rounded-xl overflow-hidden border border-slate-800 shadow-xl mb-4 bg-slate-950">
+            <img
+              src={trafficDebuggerPreviewImg}
+              alt="Reqable Traffic Debugger Preview"
+              className="w-full h-36 object-cover opacity-90 hover:opacity-100 transition-opacity"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+          <h3 className="text-sm font-bold text-slate-200">No Request Selected</h3>
+          <p className="text-xs text-slate-400 mt-1 max-w-[240px]">
+            Select any intercepted HTTP request from the left table to inspect headers, JSON payloads, timing breakdown, or generate AI mock rules.
+          </p>
+        </aside>
+      )}
 
       {/* CSV Export Success Toast Notification */}
       {exportToast && (

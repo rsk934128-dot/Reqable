@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import aiAvatarImg from '../assets/images/ai_copilot_avatar_1786299844051.jpg';
 import {
   Bot,
   Send,
@@ -83,17 +84,25 @@ export const AiCopilotDrawer: React.FC<AiCopilotDrawerProps> = ({
     <aside className="fixed inset-y-0 right-0 z-50 w-96 bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col">
       {/* Header */}
       <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-lg text-white">
-            <Sparkles className="w-4 h-4 fill-amber-300 text-amber-300" />
+        <div className="flex items-center gap-2.5">
+          <div className="relative">
+            <img
+              src={aiAvatarImg}
+              alt="Reqable AI Copilot Avatar"
+              className="w-8 h-8 rounded-full border border-purple-500/50 object-cover shadow-md shadow-purple-500/20"
+            />
+            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-950 rounded-full" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-100 text-xs">Reqable AI Copilot</h3>
+            <h3 className="font-bold text-slate-100 text-xs flex items-center gap-1.5">
+              <span>Reqable AI Copilot</span>
+              <Sparkles className="w-3 h-3 text-amber-400 fill-amber-400" />
+            </h3>
             <p className="text-[10px] text-slate-400">Gemini 2.5 Flash Traffic Intelligence</p>
           </div>
         </div>
 
-        <button onClick={onClose} className="text-slate-400 hover:text-white">
+        <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -113,16 +122,25 @@ export const AiCopilotDrawer: React.FC<AiCopilotDrawerProps> = ({
         {messages.map((m, idx) => (
           <div
             key={`ai-msg-${idx}-${m.role}`}
-            className={`p-3 rounded-xl border ${
+            className={`p-3 rounded-xl border flex gap-2.5 ${
               m.role === 'user'
                 ? 'bg-sky-950/60 border-sky-800/80 text-sky-100 ml-4'
                 : 'bg-slate-950 border-slate-800 text-slate-200 mr-4'
             }`}
           >
-            <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">
-              {m.role === 'user' ? 'You' : 'Reqable Copilot'}
+            {m.role === 'ai' && (
+              <img
+                src={aiAvatarImg}
+                alt="AI Copilot"
+                className="w-6 h-6 rounded-full border border-purple-500/40 object-cover shrink-0 mt-0.5"
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] text-slate-500 font-bold uppercase mb-1 flex items-center justify-between">
+                <span>{m.role === 'user' ? 'You' : 'Reqable Copilot'}</span>
+              </div>
+              <p className="whitespace-pre-wrap leading-relaxed">{m.text}</p>
             </div>
-            <p className="whitespace-pre-wrap leading-relaxed">{m.text}</p>
           </div>
         ))}
         {isThinking && (

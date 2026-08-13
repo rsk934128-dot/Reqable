@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+import reqablePlatformBannerImg from '../assets/images/reqable_platform_banner_1786291996003.jpg';
+import trafficDebuggerPreviewImg from '../assets/images/traffic_debugger_preview_1786292019481.jpg';
+import mockRulesEnginePreviewImg from '../assets/images/mock_rules_engine_preview_1786292041296.jpg';
+import zkpDistrictNodesPreviewImg from '../assets/images/zkp_district_nodes_preview_1786292063708.jpg';
 import {
   BookOpen,
   X,
@@ -27,10 +31,10 @@ export const ReadmeModal: React.FC<ReadmeModalProps> = ({ isOpen, onClose }) => 
   if (!isOpen) return null;
 
   const images = {
-    banner: '/src/assets/images/reqable_platform_banner_1786291996003.jpg',
-    debugger: '/src/assets/images/traffic_debugger_preview_1786292019481.jpg',
-    rules: '/src/assets/images/mock_rules_engine_preview_1786292041296.jpg',
-    zkp: '/src/assets/images/zkp_district_nodes_preview_1786292063708.jpg',
+    banner: reqablePlatformBannerImg,
+    debugger: trafficDebuggerPreviewImg,
+    rules: mockRulesEnginePreviewImg,
+    zkp: zkpDistrictNodesPreviewImg,
   };
 
   return (

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import aiAvatarImg from '../assets/images/ai_copilot_avatar_1786299844051.jpg';
 import {
   Bot,
   CheckCircle,
@@ -118,21 +119,31 @@ export const McpServerTab: React.FC = () => {
     <div id="mcp-server-view" className="h-[calc(100vh-53px)] bg-slate-950 text-slate-200 p-6 overflow-y-auto">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Banner Header */}
-        <div className="bg-gradient-to-r from-purple-950/80 via-indigo-950/80 to-slate-900 border border-purple-800/80 p-6 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Terminal className="w-6 h-6 text-purple-400" />
-              <h2 className="text-xl font-bold text-white">Built-in Reqable MCP Server</h2>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-900 text-purple-300 font-bold border border-purple-700">
-                ACTIVE
-              </span>
+        <div className="bg-gradient-to-r from-purple-950/90 via-indigo-950/80 to-slate-900 border border-purple-800/80 p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden shadow-xl">
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-16 h-16 rounded-2xl overflow-hidden border border-purple-500/50 shadow-lg shadow-purple-500/20 shrink-0 bg-slate-900">
+              <img
+                src={aiAvatarImg}
+                alt="Reqable Gemini MCP Assistant Core"
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
             </div>
-            <p className="text-xs text-slate-300 max-w-2xl">
-              Model Context Protocol (MCP) enables AI assistants such as Claude Desktop, GitHub Copilot, and Gemini to interact directly with Reqable to inspect traffic, generate assertions, and create mock rules.
-            </p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-5 h-5 text-purple-400" />
+                <h2 className="text-xl font-bold text-white">Built-in Reqable MCP AI Server</h2>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-900 text-purple-300 font-bold border border-purple-700">
+                  ACTIVE
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 max-w-2xl">
+                Model Context Protocol (MCP) enables AI assistants such as Claude Desktop, GitHub Copilot, and Gemini to interact directly with Reqable to inspect traffic, generate assertions, and create mock rules.
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-2 rounded-xl text-xs font-mono text-slate-300">
+          <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs font-mono text-slate-300 shrink-0 relative z-10">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             <span>http://localhost:3000/api/mcp/tools</span>
           </div>

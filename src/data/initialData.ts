@@ -5,6 +5,102 @@ export const INITIAL_COLLECTIONS: Collection[] = [
     id: 'col-1',
     name: 'Petstore & Auth API',
     description: 'Sample e-commerce and identity endpoints for API testing',
+    version: 'v1.0.0',
+    versions: [
+      {
+        id: 'ver-col1-v100',
+        version: 'v1.0.0',
+        name: 'v1.0.0 (Stable)',
+        description: 'Legacy v1 stable API collection release',
+        createdAt: new Date().toISOString(),
+        folders: [
+          { id: 'f-1', name: 'Authentication' },
+          { id: 'f-1-1', name: 'OAuth 2.0 & Tokens', parentId: 'f-1' },
+          { id: 'f-2', name: 'Users & Profile' },
+          { id: 'f-2-1', name: 'Admin Operations', parentId: 'f-2' },
+          { id: 'f-3', name: 'Mock Payments' },
+        ],
+        requests: [
+          {
+            id: 'req-1',
+            name: 'Login & Retrieve Token',
+            method: 'POST',
+            url: '{{baseUrl}}/post',
+            folderId: 'f-1',
+            headers: [
+              { id: 'h1', key: 'Content-Type', value: 'application/json', enabled: true },
+              { id: 'h2', key: 'User-Agent', value: 'Reqable/3.2 (Macintosh; Apple Silicon)', enabled: true },
+            ],
+            params: [],
+            bodyType: 'json',
+            body: JSON.stringify({ username: 'demo_developer', password: 'secretPassword123!' }, null, 2),
+            auth: { type: 'none' },
+            testScript: `// Reqable Automated Assertions\npm.test("Status code is 200 OK", function () {\n  pm.response.to.have.status(200);\n});\npm.test("Response contains json body", function () {\n  var jsonData = pm.response.json();\n  pm.expect(jsonData).to.have.property("json");\n});`,
+          },
+          {
+            id: 'req-2',
+            name: 'Get Current User Profile',
+            method: 'GET',
+            url: '{{baseUrl}}/get?userId=10928&role=admin',
+            folderId: 'f-2',
+            headers: [
+              { id: 'h3', key: 'Authorization', value: 'Bearer {{authToken}}', enabled: true },
+              { id: 'h4', key: 'Accept', value: 'application/json', enabled: true },
+            ],
+            params: [
+              { id: 'p1', key: 'userId', value: '10928', enabled: true },
+              { id: 'p2', key: 'role', value: 'admin', enabled: true },
+            ],
+            bodyType: 'none',
+            body: '',
+            auth: { type: 'bearer', token: '{{authToken}}' },
+            testScript: `pm.test("Status code is 200", function () {\n  pm.response.to.have.status(200);\n});`,
+          },
+        ],
+      },
+      {
+        id: 'ver-col1-v200',
+        version: 'v2.0.0-beta',
+        name: 'v2.0.0 (Beta Next-Gen)',
+        description: 'Next-generation v2 GraphQL & REST endpoint specs',
+        createdAt: new Date().toISOString(),
+        folders: [
+          { id: 'f-v2-1', name: 'v2 Identity & MFA' },
+          { id: 'f-v2-2', name: 'v2 Billing & Webhooks' },
+        ],
+        requests: [
+          {
+            id: 'req-v2-1',
+            name: 'v2 OAuth 2.1 Passwordless Login',
+            method: 'POST',
+            url: '{{baseUrl}}/post?api_version=v2',
+            folderId: 'f-v2-1',
+            headers: [
+              { id: 'h-v2-1', key: 'X-API-Version', value: 'v2.0.0-beta', enabled: true },
+              { id: 'h-v2-2', key: 'Content-Type', value: 'application/json', enabled: true },
+            ],
+            params: [{ id: 'p-v2-1', key: 'api_version', value: 'v2', enabled: true }],
+            bodyType: 'json',
+            body: JSON.stringify({ email: 'user@example.com', mfaCode: '987654' }, null, 2),
+            auth: { type: 'none' },
+          },
+          {
+            id: 'req-v2-2',
+            name: 'v2 Stream Payment Webhooks',
+            method: 'POST',
+            url: '{{baseUrl}}/post?stream=true',
+            folderId: 'f-v2-2',
+            headers: [
+              { id: 'h-v2-3', key: 'X-Webhook-Signature', value: 'sha256=abc123xyz', enabled: true },
+            ],
+            params: [],
+            bodyType: 'json',
+            body: JSON.stringify({ event: 'payment.succeeded', amount: 4900, currency: 'USD' }, null, 2),
+            auth: { type: 'none' },
+          },
+        ],
+      },
+    ],
     updatedAt: new Date().toISOString(),
     variables: [
       { id: 'v1', key: 'baseUrl', value: 'https://httpbin.org', enabled: true },
@@ -301,6 +397,103 @@ export const INITIAL_TRAFFIC: TrafficItem[] = [
 ];
 
 export const INITIAL_RULES: TrafficRule[] = [
+  {
+    id: 'mock-rule-1',
+    name: 'User Profile API Mock Endpoint',
+    enabled: true,
+    type: 'mock_server',
+    group: 'API Mock Endpoints',
+    tags: ['users', 'mock-server', 'v1'],
+    matchUrl: '/api/mock/v1/users/*',
+    matchMethod: 'GET',
+    hitCount: 58,
+    action: {
+      statusCode: 200,
+      contentType: 'application/json',
+      delayMs: 150,
+      templateVariables: true,
+      headersToAdd: [
+        { id: 'm1', key: 'X-Mock-Server', value: 'Reqable-Engine/3.2', enabled: true },
+        { id: 'm2', key: 'Cache-Control', value: 'no-cache', enabled: true },
+      ],
+      bodyReplace: JSON.stringify(
+        {
+          id: '{{$guid}}',
+          name: '{{$randomName}}',
+          email: '{{$randomEmail}}',
+          role: 'Senior Software Engineer',
+          status: 'ACTIVE',
+          accountCreated: '{{$timestamp}}',
+          preferences: {
+            theme: 'dark',
+            notifications: true,
+            apiTier: 'Pro Plan',
+          },
+        },
+        null,
+        2
+      ),
+    },
+  },
+  {
+    id: 'mock-rule-2',
+    name: 'Authentication OAuth Token Mock',
+    enabled: true,
+    type: 'mock_server',
+    group: 'API Mock Endpoints',
+    tags: ['auth', 'login', 'token'],
+    matchUrl: '/api/mock/v1/auth/login',
+    matchMethod: 'POST',
+    hitCount: 112,
+    action: {
+      statusCode: 200,
+      contentType: 'application/json',
+      delayMs: 200,
+      templateVariables: true,
+      bodyReplace: JSON.stringify(
+        {
+          token_type: 'Bearer',
+          access_token: 'reqable_jwt_{{$guid}}',
+          expires_in: 3600,
+          refresh_token: 'reqable_refresh_{{$guid}}',
+          issued_at: '{{$timestamp}}',
+        },
+        null,
+        2
+      ),
+    },
+  },
+  {
+    id: 'mock-rule-3',
+    name: 'E-Commerce Products Catalog List Mock',
+    enabled: true,
+    type: 'mock_server',
+    group: 'API Mock Endpoints',
+    tags: ['products', 'catalog', 'json'],
+    matchUrl: '/api/mock/v1/products',
+    matchMethod: 'GET',
+    hitCount: 43,
+    action: {
+      statusCode: 200,
+      contentType: 'application/json',
+      delayMs: 100,
+      templateVariables: true,
+      bodyReplace: JSON.stringify(
+        {
+          total: 3,
+          page: 1,
+          limit: 10,
+          data: [
+            { id: 'prod-001', name: 'Reqable Pro Interceptor Key', price: 49.99, stock: 120 },
+            { id: 'prod-002', name: 'High-Performance MITM Proxy Dongle', price: 89.00, stock: 45 },
+            { id: 'prod-003', name: 'SSL Certificate Authority Token', price: 19.50, stock: 300 },
+          ],
+        },
+        null,
+        2
+      ),
+    },
+  },
   {
     id: 'rule-1',
     name: 'Inject Debug Headers & Mock Key',

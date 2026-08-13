@@ -73,7 +73,7 @@ export interface TrafficItem {
   timingBreakdown: Timings;
 }
 
-export type RuleType = 'breakpoint' | 'rewrite' | 'map_local' | 'script' | 'delay';
+export type RuleType = 'breakpoint' | 'rewrite' | 'map_local' | 'script' | 'delay' | 'mock_server';
 
 export interface TrafficRule {
   id: string;
@@ -82,18 +82,21 @@ export interface TrafficRule {
   type: RuleType;
   group?: string;
   tags?: string[];
-  matchUrl: string; // glob or regex
+  matchUrl: string; // glob, regex, or mock path e.g. /api/mock/v1/users
   matchMethod?: HttpMethod | 'ALL';
   matchStatus?: number;
   hitCount?: number;
   action: {
     targetField?: 'status' | 'headers' | 'body' | 'url';
     statusCode?: number;
+    contentType?: string;
     headersToAdd?: KeyValuePair[];
     bodyReplace?: string;
     mapLocalFile?: string;
     delayMs?: number;
     scriptCode?: string;
+    templateVariables?: boolean;
+    failureRate?: number;
   };
 }
 
@@ -103,10 +106,23 @@ export interface CollectionFolder {
   parentId?: string;
 }
 
+export interface CollectionVersion {
+  id: string;
+  version: string;
+  name?: string;
+  description?: string;
+  requests: ApiRequest[];
+  folders?: CollectionFolder[];
+  variables?: KeyValuePair[];
+  createdAt: string;
+}
+
 export interface Collection {
   id: string;
   name: string;
   description: string;
+  version?: string;
+  versions?: CollectionVersion[];
   folders: CollectionFolder[];
   requests: ApiRequest[];
   variables: KeyValuePair[];

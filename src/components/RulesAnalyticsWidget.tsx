@@ -22,6 +22,7 @@ const TYPE_COLORS: Record<string, string> = {
   rewrite: '#a855f7', // purple-500
   breakpoint: '#38bdf8', // sky-400
   map_local: '#34d399', // emerald-400
+  mock_server: '#10b981', // emerald-500
   delay: '#fbbf24', // amber-400
   script: '#f43f5e', // rose-500
 };
