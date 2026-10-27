@@ -36,6 +36,28 @@ export const INITIAL_COLLECTIONS: Collection[] = [
             body: JSON.stringify({ username: 'demo_developer', password: 'secretPassword123!' }, null, 2),
             auth: { type: 'none' },
             testScript: `// Reqable Automated Assertions\npm.test("Status code is 200 OK", function () {\n  pm.response.to.have.status(200);\n});\npm.test("Response contains json body", function () {\n  var jsonData = pm.response.json();\n  pm.expect(jsonData).to.have.property("json");\n});`,
+            jsonSchema: JSON.stringify(
+              {
+                $schema: 'http://json-schema.org/draft-07/schema#',
+                title: 'LoginResponseSchema',
+                type: 'object',
+                required: ['json', 'url'],
+                properties: {
+                  json: {
+                    type: 'object',
+                    required: ['username', 'password'],
+                    properties: {
+                      username: { type: 'string', minLength: 3 },
+                      password: { type: 'string', minLength: 8 },
+                    },
+                  },
+                  url: { type: 'string', format: 'uri' },
+                },
+              },
+              null,
+              2
+            ),
+            schemaValidationEnabled: true,
           },
           {
             id: 'req-2',
@@ -55,6 +77,28 @@ export const INITIAL_COLLECTIONS: Collection[] = [
             body: '',
             auth: { type: 'bearer', token: '{{authToken}}' },
             testScript: `pm.test("Status code is 200", function () {\n  pm.response.to.have.status(200);\n});`,
+            jsonSchema: JSON.stringify(
+              {
+                $schema: 'http://json-schema.org/draft-07/schema#',
+                title: 'UserProfileResponseSchema',
+                type: 'object',
+                required: ['args', 'headers', 'url'],
+                properties: {
+                  args: {
+                    type: 'object',
+                    required: ['userId', 'role'],
+                    properties: {
+                      userId: { type: 'string', pattern: '^\\d+$' },
+                      role: { type: 'string', enum: ['admin', 'moderator', 'member'] },
+                    },
+                  },
+                  url: { type: 'string', format: 'uri' },
+                },
+              },
+              null,
+              2
+            ),
+            schemaValidationEnabled: true,
           },
         ],
       },

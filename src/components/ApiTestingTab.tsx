@@ -39,6 +39,9 @@ import {
 } from 'lucide-react';
 import { ApiRequest, ApiResponse, Collection, CollectionFolder, CollectionVersion, Environment, HttpMethod, KeyValuePair } from '../types/reqable';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { validateJsonAgainstSchema, ValidationResult, SchemaDiscrepancy } from '../utils/jsonSchemaValidator';
+import { SchemaEditor, ResponseSchemaInspector } from './SchemaValidationView';
+import { JsonDiscrepancyViewer } from './JsonDiscrepancyViewer';
 
 interface ApiTestingTabProps {
   collections: Collection[];
@@ -274,10 +277,45 @@ export const ApiTestingTab: React.FC<ApiTestingTabProps> = ({
 pm.test("Response time is fast (< 1000ms)", function () {
   pm.expect(pm.response.timeMs).to.be.below(1000);
 });`,
+    jsonSchema: JSON.stringify(
+      {
+        $schema: 'http://json-schema.org/draft-07/schema#',
+        title: 'HttpBinGetResponse',
+        type: 'object',
+        required: ['args', 'headers', 'origin', 'url'],
+        properties: {
+          args: {
+            type: 'object',
+            required: ['user', 'mode'],
+            properties: {
+              user: { type: 'string', minLength: 1 },
+              mode: { type: 'string', enum: ['debug', 'release', 'test'] },
+            },
+          },
+          headers: {
+            type: 'object',
+          },
+          origin: {
+            type: 'string',
+          },
+          url: {
+            type: 'string',
+            format: 'uri',
+          },
+        },
+      },
+      null,
+      2
+    ),
+    schemaValidationEnabled: true,
   });
 
-  const [requestSubTab, setRequestSubTab] = useState<'params' | 'headers' | 'body' | 'auth' | 'tests'>('params');
-  const [responseSubTab, setResponseSubTab] = useState<'pretty' | 'raw' | 'headers' | 'timings' | 'tests' | 'code'>('pretty');
+  const [requestSubTab, setRequestSubTab] = useState<'params' | 'headers' | 'body' | 'auth' | 'tests' | 'schema'>('params');
+  const [responseSubTab, setResponseSubTab] = useState<'pretty' | 'raw' | 'headers' | 'timings' | 'tests' | 'code' | 'schema'>('pretty');
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [schemaFormatStatus, setSchemaFormatStatus] = useState<{ success?: string; error?: string } | null>(null);
+  const [highlightDiscrepanciesInPretty, setHighlightDiscrepanciesInPretty] = useState<boolean>(true);
+  const [selectedDiscrepancyPath, setSelectedDiscrepancyPath] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [activeCollectionId, setActiveCollectionId] = useState<string>(collections[0]?.id || '');
@@ -803,6 +841,9 @@ pm.test("Response time is fast (< 1000ms)", function () {
     try {
       const res = await onSendRequest(payloadToExecute);
       setResponse(res);
+      if (activeReq.jsonSchema && activeReq.schemaValidationEnabled !== false) {
+        executeSchemaValidation(activeReq.jsonSchema, res.body);
+      }
       setRequestResults((prev) => ({
         ...prev,
         [activeReq.id]: {
@@ -823,6 +864,143 @@ pm.test("Response time is fast (< 1000ms)", function () {
       }));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Execute schema validation against current or provided response body
+  const executeSchemaValidation = useCallback(
+    (schemaText?: string, responseBody?: string) => {
+      const schemaToUse = schemaText !== undefined ? schemaText : activeReq.jsonSchema;
+      const bodyToUse = responseBody !== undefined ? responseBody : response?.body;
+
+      if (!schemaToUse || !schemaToUse.trim()) {
+        setValidationResult(null);
+        return;
+      }
+
+      if (!bodyToUse || !bodyToUse.trim()) {
+        setValidationResult(null);
+        return;
+      }
+
+      try {
+        let parsedBody: any;
+        try {
+          parsedBody = JSON.parse(bodyToUse);
+        } catch {
+          setValidationResult({
+            valid: false,
+            discrepancies: [
+              {
+                id: 'err-body-not-json',
+                path: '#',
+                humanPath: '(root)',
+                keyword: 'syntax',
+                message: 'Response body is not valid JSON and cannot be validated against JSON Schema.',
+                expected: 'Valid JSON string/object',
+                actual: bodyToUse.slice(0, 80),
+                severity: 'error',
+              },
+            ],
+            validatedAt: new Date().toISOString(),
+            fieldCount: 0,
+            schemaTitle: activeReq.name,
+          });
+          return;
+        }
+
+        let parsedSchema: any;
+        try {
+          parsedSchema = JSON.parse(schemaToUse);
+        } catch (err: any) {
+          setValidationResult({
+            valid: false,
+            discrepancies: [
+              {
+                id: 'err-schema-syntax',
+                path: '#',
+                humanPath: '(root)',
+                keyword: 'syntax',
+                message: `JSON Schema syntax error: ${err.message}`,
+                expected: 'Valid JSON Schema object',
+                actual: 'Syntax error in schema definition',
+                severity: 'error',
+              },
+            ],
+            validatedAt: new Date().toISOString(),
+            fieldCount: 0,
+            schemaTitle: 'Schema Syntax Error',
+          });
+          return;
+        }
+
+        const result = validateJsonAgainstSchema(parsedBody, parsedSchema, activeReq.name);
+        setValidationResult(result);
+      } catch (err: any) {
+        setValidationResult({
+          valid: false,
+          discrepancies: [
+            {
+              id: 'err-unexpected',
+              path: '#',
+              humanPath: '(root)',
+              keyword: 'other',
+              message: `Unexpected error during schema validation: ${err.message}`,
+              expected: 'Evaluation without runtime crash',
+              actual: String(err),
+              severity: 'error',
+            },
+          ],
+          validatedAt: new Date().toISOString(),
+          fieldCount: 0,
+          schemaTitle: activeReq.name,
+        });
+      }
+    },
+    [activeReq.jsonSchema, activeReq.name, response?.body]
+  );
+
+  const handleUpdateSchema = (newSchema: string) => {
+    setActiveReq((prev) => ({ ...prev, jsonSchema: newSchema }));
+    if (response?.body && activeReq.schemaValidationEnabled !== false) {
+      executeSchemaValidation(newSchema, response.body);
+    }
+  };
+
+  const handleToggleSchemaEnabled = (enabled: boolean) => {
+    setActiveReq((prev) => ({ ...prev, schemaValidationEnabled: enabled }));
+    if (enabled && activeReq.jsonSchema && response?.body) {
+      executeSchemaValidation(activeReq.jsonSchema, response.body);
+    } else if (!enabled) {
+      setValidationResult(null);
+    }
+  };
+
+  const handleFormatSchema = () => {
+    if (!activeReq.jsonSchema || !activeReq.jsonSchema.trim()) {
+      setSchemaFormatStatus({ error: 'Schema editor is empty' });
+      setTimeout(() => setSchemaFormatStatus(null), 2500);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(activeReq.jsonSchema);
+      const pretty = JSON.stringify(parsed, null, 2);
+      setActiveReq((prev) => ({ ...prev, jsonSchema: pretty }));
+      setSchemaFormatStatus({ success: 'Formatted JSON Schema' });
+      setTimeout(() => setSchemaFormatStatus(null), 2500);
+    } catch (e: any) {
+      setSchemaFormatStatus({ error: `Invalid JSON Schema: ${e.message}` });
+      setTimeout(() => setSchemaFormatStatus(null), 3000);
+    }
+  };
+
+  const handleSelectRequest = (colId: string, req: ApiRequest) => {
+    setActiveCollectionId(colId);
+    setActiveReq(req);
+    if (req.jsonSchema && req.schemaValidationEnabled !== false && response?.body) {
+      executeSchemaValidation(req.jsonSchema, response.body);
+    } else {
+      setValidationResult(null);
     }
   };
 
@@ -1298,10 +1476,7 @@ pm.test("Response time is fast (< 1000ms)", function () {
                         activeReqId={activeReq.id}
                         expandedNodes={expandedNodes}
                         toggleNode={toggleNode}
-                        onSelectReq={(colId, req) => {
-                          setActiveCollectionId(colId);
-                          setActiveReq(req);
-                        }}
+                        onSelectReq={handleSelectRequest}
                         onAddSubFolder={handleAddFolder}
                         onAddRequest={handleAddRequestToFolder}
                         onRenameFolder={handleRenameFolder}
@@ -1316,10 +1491,7 @@ pm.test("Response time is fast (< 1000ms)", function () {
                     {rootRequests.map((r) => (
                       <div
                         key={r.id}
-                        onClick={() => {
-                          setActiveCollectionId(col.id);
-                          setActiveReq(r);
-                        }}
+                        onClick={() => handleSelectRequest(col.id, r)}
                         className={`group flex items-center justify-between pl-5 pr-1.5 py-1 rounded text-xs transition-all cursor-pointer ${
                           activeReq.id === r.id
                             ? 'bg-sky-950/90 text-sky-200 border border-sky-800/80 font-medium'
@@ -1679,22 +1851,25 @@ pm.test("Response time is fast (< 1000ms)", function () {
             {/* Request Config Sub-Tabs */}
             <div className="px-3 bg-slate-900/30 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-1 text-xs">
-                {(['params', 'headers', 'body', 'auth', 'tests'] as const).map((tab) => (
+                {(['params', 'headers', 'body', 'auth', 'tests', 'schema'] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setRequestSubTab(tab)}
-                    className={`px-3 py-2 border-b-2 font-medium capitalize transition-all ${
+                    className={`px-3 py-2 border-b-2 font-medium capitalize transition-all flex items-center gap-1 cursor-pointer ${
                       requestSubTab === tab
                         ? 'border-sky-500 text-sky-400 bg-slate-900/50'
                         : 'border-transparent text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    {tab}
+                    <span>{tab === 'schema' ? 'Schema' : tab}</span>
                     {tab === 'params' && activeReq.params.length > 0 && (
                       <span className="ml-1 text-[10px] text-sky-400">({activeReq.params.length})</span>
                     )}
                     {tab === 'headers' && activeReq.headers.length > 0 && (
                       <span className="ml-1 text-[10px] text-sky-400">({activeReq.headers.length})</span>
+                    )}
+                    {tab === 'schema' && activeReq.jsonSchema && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-sky-400 ml-0.5 inline-block" title="Schema defined" />
                     )}
                   </button>
                 ))}
@@ -1980,6 +2155,19 @@ pm.test("Response time is fast (< 1000ms)", function () {
                   />
                 </div>
               )}
+
+              {/* SCHEMA TAB */}
+              {requestSubTab === 'schema' && (
+                <SchemaEditor
+                  schemaText={activeReq.jsonSchema || ''}
+                  onChangeSchema={handleUpdateSchema}
+                  isEnabled={activeReq.schemaValidationEnabled !== false}
+                  onToggleEnabled={handleToggleSchemaEnabled}
+                  responseBody={response?.body}
+                  onFormatSchema={handleFormatSchema}
+                  formatStatus={schemaFormatStatus}
+                />
+              )}
             </div>
           </div>
 
@@ -2019,17 +2207,28 @@ pm.test("Response time is fast (< 1000ms)", function () {
 
               {/* Response Sub Tabs */}
               <div className="flex items-center gap-1 text-xs">
-                {(['pretty', 'raw', 'headers', 'timings', 'tests'] as const).map((tab) => (
+                {(['pretty', 'raw', 'headers', 'timings', 'tests', 'schema'] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setResponseSubTab(tab)}
-                    className={`px-2.5 py-1 rounded transition-all capitalize ${
+                    className={`px-2.5 py-1 rounded transition-all capitalize flex items-center gap-1.5 cursor-pointer ${
                       responseSubTab === tab
                         ? 'bg-slate-800 text-white font-medium'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    {tab}
+                    <span>{tab === 'schema' ? 'Schema' : tab}</span>
+                    {tab === 'schema' && validationResult && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold ${
+                          validationResult.valid
+                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                            : 'bg-rose-950 text-rose-400 border border-rose-800'
+                        }`}
+                      >
+                        {validationResult.valid ? 'PASS' : `${validationResult.discrepancies.length} ERR`}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -2044,17 +2243,17 @@ pm.test("Response time is fast (< 1000ms)", function () {
                 </div>
               ) : (
                 <>
-                  {/* PRETTY JSON VIEWER */}
+                  {/* PRETTY JSON VIEWER WITH SCHEMA DISCREPANCY HIGHLIGHTING */}
                   {responseSubTab === 'pretty' && (
-                    <pre className="text-slate-200 bg-slate-900/60 p-3 rounded-lg border border-slate-800/80 whitespace-pre-wrap break-all">
-                      {(() => {
-                        try {
-                          return JSON.stringify(JSON.parse(response.body), null, 2);
-                        } catch {
-                          return response.body;
-                        }
-                      })()}
-                    </pre>
+                    <div className="h-full rounded-lg border border-slate-800/80 overflow-hidden bg-slate-950">
+                      <JsonDiscrepancyViewer
+                        jsonString={response.body}
+                        discrepancies={validationResult?.discrepancies || []}
+                        highlightEnabled={highlightDiscrepanciesInPretty}
+                        onToggleHighlight={setHighlightDiscrepanciesInPretty}
+                        selectedDiscrepancyPath={selectedDiscrepancyPath}
+                      />
+                    </div>
                   )}
 
                   {/* RAW VIEWER */}
@@ -2135,6 +2334,21 @@ pm.test("Response time is fast (< 1000ms)", function () {
                         <span className="text-emerald-400 font-mono text-[10px]">PASS</span>
                       </div>
                     </div>
+                  )}
+
+                  {/* SCHEMA VALIDATION DISCREPANCY INSPECTOR */}
+                  {responseSubTab === 'schema' && (
+                    <ResponseSchemaInspector
+                      validationResult={validationResult}
+                      schemaText={activeReq.jsonSchema || ''}
+                      responseBody={response.body}
+                      onOpenSchemaEditor={() => setRequestSubTab('schema')}
+                      onSelectDiscrepancy={(disc) => {
+                        setSelectedDiscrepancyPath(disc.path);
+                        setHighlightDiscrepanciesInPretty(true);
+                        setResponseSubTab('pretty');
+                      }}
+                    />
                   )}
                 </>
               )}

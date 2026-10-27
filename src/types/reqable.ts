@@ -30,6 +30,8 @@ export interface ApiRequest {
   preRequestScript?: string;
   testScript?: string;
   folderId?: string;
+  jsonSchema?: string;
+  schemaValidationEnabled?: boolean;
 }
 
 export interface Timings {
@@ -52,6 +54,7 @@ export interface ApiResponse {
   contentType: string;
   timestamp: string;
   testResults?: { name: string; passed: boolean; message?: string }[];
+  schemaValidation?: import('../utils/jsonSchemaValidator').ValidationResult;
 }
 
 export interface TrafficItem {
