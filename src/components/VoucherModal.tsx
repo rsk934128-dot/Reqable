@@ -61,9 +61,15 @@ export const VoucherModal: React.FC<VoucherModalProps> = ({ isOpen, onClose }) =
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4 relative z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 p-0.5 shadow-lg shadow-amber-500/20 shrink-0">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                <Ticket className="w-5 h-5 text-amber-400" />
+            <div className="relative w-12 h-12 rounded-xl bg-slate-900 border border-amber-500/70 p-0.5 shadow-lg shadow-amber-500/25 shrink-0 flex items-center justify-center overflow-hidden">
+              <img
+                src={appLogoImg}
+                alt="Reqable App Logo"
+                className="w-full h-full object-cover rounded-[10px]"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute -bottom-1 -right-1 bg-amber-500 text-slate-950 p-1 rounded-full shadow">
+                <Ticket className="w-3 h-3 font-extrabold" />
               </div>
             </div>
             <div>
@@ -81,7 +87,7 @@ export const VoucherModal: React.FC<VoucherModalProps> = ({ isOpen, onClose }) =
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -101,7 +107,7 @@ export const VoucherModal: React.FC<VoucherModalProps> = ({ isOpen, onClose }) =
                 <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-slate-900 rounded-full border border-slate-800" />
 
                 <div className="pl-3 pr-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1 flex-1 min-w-0">
+                  <div className="space-y-1.5 flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-[9px] font-extrabold font-mono uppercase px-2 py-0.5 rounded text-white bg-gradient-to-r ${v.color}`}>
                         {v.badge}
@@ -112,7 +118,17 @@ export const VoucherModal: React.FC<VoucherModalProps> = ({ isOpen, onClose }) =
                       </span>
                     </div>
 
-                    <h4 className="font-bold text-sm text-slate-100">{v.bnTitle}</h4>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg overflow-hidden border border-amber-500/50 bg-slate-900 shrink-0 shadow-sm flex items-center justify-center p-0.5">
+                        <img
+                          src={appLogoImg}
+                          alt="Reqable Logo"
+                          className="w-full h-full object-cover rounded"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      <h4 className="font-bold text-sm text-slate-100 truncate">{v.bnTitle}</h4>
+                    </div>
                     <p className="text-xs text-slate-400 leading-relaxed">{v.desc}</p>
                   </div>
 

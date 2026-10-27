@@ -8,14 +8,28 @@ import {
   signOut,
   User,
 } from 'firebase/auth';
-import { initializeFirestore, doc, getDoc } from 'firebase/firestore';
+import { initializeFirestore, setLogLevel, doc, getDoc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
+
+// Set Firestore log level to 'error' to avoid noisy connection timeout warnings when running in proxy/preview environments
+try {
+  setLogLevel('error');
+} catch {
+  // Ignore if unsupported in environment
+}
+
 const firestoreDbId = (firebaseConfig as any).firestoreDatabaseId;
+// Use experimentalForceLongPolling and disable fetch streams to avoid 10s WebChannel connection hangs in cloud/proxy environments
+const firestoreSettings = {
+  experimentalForceLongPolling: true,
+  useFetchStreams: false,
+};
+
 export const db = firestoreDbId
-  ? initializeFirestore(app, { experimentalAutoDetectLongPolling: true }, firestoreDbId)
-  : initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+  ? initializeFirestore(app, firestoreSettings, firestoreDbId)
+  : initializeFirestore(app, firestoreSettings);
 export const auth = getAuth(app);
 export const googleAuthProvider = new GoogleAuthProvider();
 // Add Gmail & Workspace OAuth scopes
@@ -65,8 +79,11 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorCode = (error as any)?.code || '';
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -81,6 +98,18 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
+
+  // Gracefully handle expected offline or delayed backend connection without logging fatal errors
+  if (
+    errorCode === 'unavailable' ||
+    errorCode === 'deadline-exceeded' ||
+    errorMessage.includes('Could not reach') ||
+    errorMessage.includes('offline')
+  ) {
+    console.info(`Firestore operating with offline cache for ${operationType} on ${path}`);
+    return errInfo;
+  }
+
   console.error('Firestore Error:', JSON.stringify(errInfo));
   return errInfo;
 }
@@ -98,34 +127,58 @@ export async function testFirebaseConnection() {
   }
 }
 
-export async function loginWithGoogle(): Promise<{ user: User | null; accessToken: string | null }> {
-  try {
-    const result = await signInWithPopup(auth, googleAuthProvider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const token = credential?.accessToken || null;
-    setCachedAccessToken(token);
-    return { user: result.user, accessToken: token };
-  } catch (error: any) {
-    const isPopupBlocked =
-      error?.code === 'auth/popup-blocked' ||
-      error?.message?.includes('popup-blocked') ||
-      error?.code === 'auth/popup-closed-by-user';
+let activeLoginPromise: Promise<{ user: User | null; accessToken: string | null }> | null = null;
 
-    if (isPopupBlocked) {
-      console.warn('Google Sign-In popup was blocked. Attempting OAuth redirect fallback...');
-      try {
-        await signInWithRedirect(auth, googleAuthProvider);
-        return { user: auth.currentUser, accessToken: getCachedAccessToken() };
-      } catch (redirectErr: any) {
-        console.error('Redirect sign-in error:', redirectErr);
-        throw new Error(
-          'Google Sign-In popup was blocked by browser security. Please click "Open App in New Tab" or allow popups.'
-        );
-      }
-    }
-    console.error('Google Sign In Error:', error);
-    throw error;
+export async function loginWithGoogle(): Promise<{ user: User | null; accessToken: string | null }> {
+  if (activeLoginPromise) {
+    return activeLoginPromise;
   }
+
+  activeLoginPromise = (async () => {
+    try {
+      const result = await signInWithPopup(auth, googleAuthProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken || null;
+      setCachedAccessToken(token);
+      return { user: result.user, accessToken: token };
+    } catch (error: any) {
+      const errorCode = error?.code || '';
+      const errorMessage = error?.message || '';
+
+      // User closed popup or a concurrent request was cancelled - this is expected behavior, not a critical failure
+      if (
+        errorCode === 'auth/cancelled-popup-request' ||
+        errorCode === 'auth/popup-closed-by-user' ||
+        errorMessage.includes('cancelled-popup-request') ||
+        errorMessage.includes('popup-closed-by-user')
+      ) {
+        console.info('Google Sign-In popup was closed or superseded by the user.');
+        return { user: auth.currentUser, accessToken: getCachedAccessToken() };
+      }
+
+      // Browser blocked popup
+      if (errorCode === 'auth/popup-blocked' || errorMessage.includes('popup-blocked')) {
+        console.warn('Google Sign-In popup was blocked by browser. Attempting redirect fallback if supported...');
+        const isInIframe = window.self !== window.top;
+        if (!isInIframe) {
+          try {
+            await signInWithRedirect(auth, googleAuthProvider);
+            return { user: auth.currentUser, accessToken: getCachedAccessToken() };
+          } catch (redirectErr) {
+            console.warn('Redirect sign-in notice:', redirectErr);
+          }
+        }
+        return { user: auth.currentUser, accessToken: getCachedAccessToken() };
+      }
+
+      console.warn('Google Sign-In notice:', error);
+      return { user: auth.currentUser, accessToken: getCachedAccessToken() };
+    } finally {
+      activeLoginPromise = null;
+    }
+  })();
+
+  return activeLoginPromise;
 }
 
 export async function logoutUser(): Promise<void> {

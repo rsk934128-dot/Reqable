@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, loginWithGoogle, logoutUser, testFirebaseConnection, handleFirestoreError, OperationType, setCachedAccessToken } from '../lib/firebase';
+import { auth, db, loginWithGoogle, logoutUser, testFirebaseConnection, handleFirestoreError, OperationType, setCachedAccessToken, getCachedAccessToken } from '../lib/firebase';
 
 export const DEFAULT_ADMIN_EMAILS = ['rsk934128@gmail.com', 'rubels1k994@gmail.com'];
 
@@ -9,6 +9,7 @@ interface AuthContextType {
   user: User | null;
   accessToken: string | null;
   loading: boolean;
+  isLoggingIn: boolean;
   isAdmin: boolean;
   adminEmails: string[];
   login: () => Promise<{ user: User | null; accessToken: string | null }>;
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   accessToken: null,
   loading: true,
+  isLoggingIn: false,
   isAdmin: false,
   adminEmails: DEFAULT_ADMIN_EMAILS,
   login: async () => ({ user: null, accessToken: null }),
@@ -35,6 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [adminEmails, setAdminEmails] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('reqable_admin_emails');
@@ -128,11 +131,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async () => {
-    const res = await loginWithGoogle();
-    if (res?.accessToken) {
-      setAccessToken(res.accessToken);
+    if (isLoggingIn) {
+      return { user, accessToken };
     }
-    return res;
+    setIsLoggingIn(true);
+    try {
+      const res = await loginWithGoogle();
+      if (res?.accessToken) {
+        setAccessToken(res.accessToken);
+      }
+      return res;
+    } catch (err: any) {
+      console.warn('Google sign-in attempt notice:', err?.message || err);
+      return { user: auth.currentUser, accessToken: getCachedAccessToken() };
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   const logout = async () => {
@@ -146,6 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         accessToken,
         loading,
+        isLoggingIn,
         isAdmin,
         adminEmails,
         login,

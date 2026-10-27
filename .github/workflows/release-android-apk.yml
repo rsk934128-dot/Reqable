@@ -1,0 +1,138 @@
+name: Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v3.2.22)'
+        required: false
+        default: 'v3.2.22'
+      build_type:
+        description: 'Build Type (release or debug)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build & Release Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🟢 Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 Install npm dependencies
+        run: npm install
+
+      - name: 🛠️ Build Web Application (Vite)
+        run: npm run build
+
+      - name: ☕ Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: 🤖 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 🔄 Sync Capacitor Android Assets
+        run: |
+          npx cap sync android || echo "Capacitor sync fallback"
+          mkdir -p android/app/src/main/assets/public
+          cp -r dist/* android/app/src/main/assets/public/
+
+      - name: 🔑 Make Gradlew Executable
+        run: |
+          cd android
+          chmod +x gradlew || true
+
+      - name: 🏗️ Build APK with Gradle
+        run: |
+          cd android
+          if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
+            ./gradlew assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
+          else
+            ./gradlew assembleDebug --stacktrace
+          fi
+
+      - name: 🔍 Locate and Rename APK
+        id: locate_apk
+        run: |
+          VERSION="${{ github.ref_name }}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ] || [ "$VERSION" = "master" ]; then
+            VERSION="${{ github.event.inputs.version || 'v3.2.22' }}"
+          fi
+          
+          mkdir -p release-artifacts
+          
+          # Find generated APK
+          APK_PATH=$(find android/app/build/outputs/apk/ -name "*.apk" | head -n 1)
+          
+          if [ -f "$APK_PATH" ]; then
+            TARGET_APK="release-artifacts/Reqable-Android-${VERSION}.apk"
+            cp "$APK_PATH" "$TARGET_APK"
+            echo "apk_path=$TARGET_APK" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "✅ Successfully prepared APK: $TARGET_APK"
+          else
+            echo "❌ APK file not found!"
+            exit 1
+          fi
+
+      - name: 📤 Upload APK Artifact to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: Reqable-Android-${{ steps.locate_apk.outputs.version }}
+          path: ${{ steps.locate_apk.outputs.apk_path }}
+          retention-days: 30
+
+      - name: 🚀 Create GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ steps.locate_apk.outputs.version }}
+          name: Reqable Android ${{ steps.locate_apk.outputs.version }}
+          body: |
+            # 📱 Reqable Android APK Release (${{ steps.locate_apk.outputs.version }})
+
+            Automated Android APK build from GitHub Actions workflow.
+
+            ### 🚀 Highlights
+            - **App Package**: `com.reqable.android`
+            - **Target Platform**: Android 7.0+ (API Level 24 - 34+)
+            - **Features Included**:
+              - API Traffic Debugging & Interception
+              - Full REST/GraphQL API Client
+              - MITM Rewriting & Mock Rules Engine
+              - Gemini AI Traffic Copilot
+              - OWASP API Security Vulnerability Scanner
+              - Google Workspace Integration (Drive, Gmail, Meet)
+              - Cloud Firestore Multi-Device Sync
+
+            ### 📲 Installation Instructions:
+            1. Download the `Reqable-Android-${{ steps.locate_apk.outputs.version }}.apk` asset below to your Android device.
+            2. If prompted, allow "Install from Unknown Sources" in your Android Settings.
+            3. Tap the downloaded APK file and click **Install**.
+            4. Launch **Reqable** and start debugging your mobile APIs!
+          files: ${{ steps.locate_apk.outputs.apk_path }}
+          draft: false
+          prerelease: false

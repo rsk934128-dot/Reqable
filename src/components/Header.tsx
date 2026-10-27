@@ -4,6 +4,7 @@ import appLogoImg from '../assets/images/app_logo_icon_1786295060681.jpg';
 import { VoucherModal } from './VoucherModal';
 import { AdminControlModal } from './AdminControlModal';
 import { SaasPricingModal } from './SaasPricingModal';
+import { AndroidApkReleaseModal } from './AndroidApkReleaseModal';
 import {
   Activity,
   CheckCircle,
@@ -37,6 +38,7 @@ import {
   ChevronRight,
   AppWindow,
   Ticket,
+  Smartphone,
 } from 'lucide-react';
 import { Environment } from '../types/reqable';
 import { useAuth } from '../context/AuthContext';
@@ -83,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
   firestoreLastSyncTime,
   onManualSync,
 }) => {
-  const { user, login, logout, loading, isAdmin } = useAuth();
+  const { user, login, logout, loading, isLoggingIn, isAdmin } = useAuth();
   const { theme, toggleTheme, resetToSystemTheme, isSystemTheme } = useTheme();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -91,6 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+  const [isApkModalOpen, setIsApkModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const allProgramsList = [
@@ -238,6 +241,18 @@ export const Header: React.FC<HeaderProps> = ({
       tagClass: 'bg-emerald-950 text-emerald-300 border border-emerald-800',
       action: () => setIsPricingModalOpen(true),
     },
+    {
+      id: 'android-apk',
+      bnName: 'অ্যান্ড্রয়েড APK রিলিজ',
+      name: 'Android APK Release & CI/CD',
+      desc: 'GitHub Actions দিয়ে স্বয়ংক্রিয়ভাবে Android APK বিল্ড, রিলিজ ও ডাউনলোড করার গাইড।',
+      icon: Smartphone,
+      bgClass: 'bg-teal-950 text-teal-400 border border-teal-800',
+      iconClass: 'text-teal-400',
+      tag: 'GitHub APK',
+      tagClass: 'bg-teal-950 text-teal-300 border border-teal-800',
+      action: () => setIsApkModalOpen(true),
+    },
   ];
 
   const currentActiveTabInfo = allProgramsList.find((prog) => prog.tabId === activeTab) || allProgramsList[0];
@@ -274,15 +289,23 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Highlighted Voucher Promo Badge in Top Brand Bar */}
+        {/* Highlighted Voucher Promo Badge in Top Brand Bar with App Icon */}
         <button
           id="btn-header-voucher-badge"
           onClick={() => setIsVoucherModalOpen(true)}
-          className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 px-2.5 py-1 min-h-[36px] rounded-lg border border-amber-500/50 shadow-sm transition-all cursor-pointer group"
+          className="flex items-center gap-2 bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 px-2.5 py-1 min-h-[36px] rounded-lg border border-amber-500/60 shadow-sm transition-all cursor-pointer group"
           title="স্পেশাল ভাউচার ও প্রো অফার দেখুন (View Active Vouchers)"
         >
-          <div className="w-5 h-5 rounded bg-amber-500 text-slate-950 flex items-center justify-center font-bold shadow-sm group-hover:scale-110 transition-transform">
-            <Ticket className="w-3.5 h-3.5 fill-current" />
+          <div className="relative w-6 h-6 rounded-md bg-slate-950 border border-amber-400/80 overflow-hidden flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform shrink-0">
+            <img
+              src={appLogoImg}
+              alt="Reqable App Logo"
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+            <span className="absolute -bottom-0.5 -right-0.5 bg-amber-500 text-slate-950 p-0.5 rounded-full shadow">
+              <Ticket className="w-2 h-2" />
+            </span>
           </div>
           <span className="text-xs font-bold tracking-tight hidden sm:inline">ভাউচার</span>
           <span className="px-1.5 py-0.2 text-[9px] font-extrabold font-mono bg-amber-400 text-slate-950 rounded uppercase animate-pulse">
@@ -589,13 +612,21 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         ) : (
           <button
-            onClick={() => login()}
-            disabled={loading}
-            className="px-3 min-h-[44px] min-w-[44px] justify-center rounded-md text-xs font-medium bg-amber-950/80 border border-amber-700/80 text-amber-300 hover:bg-amber-900 flex items-center gap-1.5 transition-all"
+            onClick={async () => {
+              try {
+                await login();
+              } catch (e) {
+                // safely caught
+              }
+            }}
+            disabled={loading || isLoggingIn}
+            className="px-3 min-h-[44px] min-w-[44px] justify-center rounded-md text-xs font-medium bg-amber-950/80 border border-amber-700/80 text-amber-300 hover:bg-amber-900 flex items-center gap-1.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             title="Sign in with Firebase / Google"
           >
-            <LogIn className="w-4 h-4" />
-            <span className="hidden sm:inline">{loading ? 'Connecting...' : 'Firebase Auth'}</span>
+            <LogIn className={`w-4 h-4 ${isLoggingIn ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">
+              {isLoggingIn ? 'Signing In...' : loading ? 'Connecting...' : 'Firebase Auth'}
+            </span>
           </button>
         )}
 
@@ -778,8 +809,19 @@ export const Header: React.FC<HeaderProps> = ({
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2.5">
-                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${prog.bgClass}`}>
-                              <IconComponent className={`w-5 h-5 ${prog.iconClass}`} />
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 overflow-hidden ${prog.bgClass}`}>
+                              {prog.id === 'voucher' ? (
+                                <div className="relative w-full h-full p-1 bg-slate-900 flex items-center justify-center">
+                                  <img
+                                    src={appLogoImg}
+                                    alt="Reqable App Logo"
+                                    className="w-full h-full object-cover rounded"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+                              ) : (
+                                <IconComponent className={`w-5 h-5 ${prog.iconClass}`} />
+                              )}
                             </div>
                             <div>
                               <h3 className="text-xs font-bold text-slate-100 group-hover:text-sky-300 transition-colors">
@@ -944,7 +986,17 @@ export const Header: React.FC<HeaderProps> = ({
                     className="p-2.5 bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/60 text-amber-300 rounded-xl text-xs font-bold flex flex-col gap-1 items-start cursor-pointer transition-all"
                   >
                     <div className="flex items-center justify-between w-full">
-                      <Ticket className="w-4 h-4 text-amber-400" />
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-5 h-5 rounded overflow-hidden border border-amber-400/80 bg-slate-900 shrink-0">
+                          <img
+                            src={appLogoImg}
+                            alt="Reqable App Logo"
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <Ticket className="w-3.5 h-3.5 text-amber-400" />
+                      </div>
                       <span className="text-[9px] bg-amber-400 text-slate-950 font-extrabold px-1 rounded">FREE VIP</span>
                     </div>
                     <span>ভাউচার কোড</span>
@@ -990,6 +1042,22 @@ export const Header: React.FC<HeaderProps> = ({
                       <span className="text-[9px] bg-purple-400 text-slate-950 font-extrabold px-1 rounded">AI</span>
                     </div>
                     <span>AI Copilot</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsApkModalOpen(true);
+                      setIsMobileDrawerOpen(false);
+                    }}
+                    className="col-span-2 p-2.5 bg-teal-950/60 hover:bg-teal-900/60 border border-teal-700/60 text-teal-300 rounded-xl text-xs font-bold flex items-center justify-between cursor-pointer transition-all"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-teal-400" />
+                      <span>গিটহাব অ্যান্ড্রয়েড APK রিলিজ</span>
+                    </div>
+                    <span className="text-[9px] bg-teal-400 text-slate-950 font-extrabold px-1.5 py-0.5 rounded font-mono">
+                      v3.2.22 APK
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1088,15 +1156,21 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                 ) : (
                   <button
-                    onClick={() => {
-                      login();
-                      setIsMobileDrawerOpen(false);
+                    onClick={async () => {
+                      try {
+                        await login();
+                        setIsMobileDrawerOpen(false);
+                      } catch (e) {
+                        // safely caught
+                      }
                     }}
-                    disabled={loading}
-                    className="w-full p-2.5 rounded-xl border border-amber-700/80 bg-amber-950/80 text-amber-300 hover:bg-amber-900 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all"
+                    disabled={loading || isLoggingIn}
+                    className="w-full p-2.5 rounded-xl border border-amber-700/80 bg-amber-950/80 text-amber-300 hover:bg-amber-900 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <LogIn className="w-4 h-4" />
-                    <span>{loading ? 'Connecting...' : 'Firebase Auth Sign In'}</span>
+                    <LogIn className={`w-4 h-4 ${isLoggingIn ? 'animate-spin' : ''}`} />
+                    <span>
+                      {isLoggingIn ? 'Signing In...' : loading ? 'Connecting...' : 'Firebase Auth Sign In'}
+                    </span>
                   </button>
                 )}
               </div>
@@ -1126,6 +1200,12 @@ export const Header: React.FC<HeaderProps> = ({
       <SaasPricingModal
         isOpen={isPricingModalOpen}
         onClose={() => setIsPricingModalOpen(false)}
+      />
+
+      {/* Android APK Release Hub Modal */}
+      <AndroidApkReleaseModal
+        isOpen={isApkModalOpen}
+        onClose={() => setIsApkModalOpen(false)}
       />
 
       {/* Screen-Pinned Floating Menu Launcher Button (সকল জায়গা থেকে অ্যাক্সেসযোগ্য ফিক্সড স্ক্রিন মেনু) */}

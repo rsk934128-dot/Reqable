@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Reqable</string>
+    <string name="title_activity_main">Reqable</string>
+    <string name="package_name">com.reqable.android</string>
+    <string name="custom_url_scheme">com.reqable.android</string>
+</resources>
