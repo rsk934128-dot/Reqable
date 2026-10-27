@@ -37,10 +37,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: 📦 Install npm dependencies
-        run: npm ci || npm install
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci || npm install
+          else
+            npm install
+          fi
 
       - name: 🛠️ Build Web Application (Vite)
         run: npm run build
@@ -50,7 +54,11 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: 17
-          cache: 'gradle'
+
+      - name: 🐘 Setup Gradle 8.5 (AGP 8.2 Compatible)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
 
       - name: 🤖 Setup Android SDK & Accept Licenses
         run: |
@@ -83,9 +91,9 @@ jobs:
         run: |
           cd android
           if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
-            ./gradlew assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
+            ./gradlew assembleRelease --stacktrace --no-daemon || ./gradlew assembleDebug --stacktrace --no-daemon
           else
-            ./gradlew assembleDebug --stacktrace
+            ./gradlew assembleDebug --stacktrace --no-daemon
           fi
 
       - name: 🔍 Locate and Rename APK
