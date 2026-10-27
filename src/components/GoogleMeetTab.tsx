@@ -117,10 +117,17 @@ export const GoogleMeetTab: React.FC<GoogleMeetTabProps> = ({
           timestamp: new Date().toLocaleTimeString(),
           method: 'GET',
           url: endpoint,
-          statusCode: res.status,
-          latencyMs: latency,
+          protocol: 'HTTP/2.0',
+          requestHeaders: { Authorization: 'Bearer [HIDDEN]' },
+          requestBody: '',
+          responseStatus: res.status,
+          responseHeaders: { 'content-type': 'application/json' },
+          responseBody: '',
+          durationMs: latency,
           sizeBytes: 1024,
-          contentType: 'application/json',
+          clientIp: '127.0.0.1',
+          status: 'captured',
+          timingBreakdown: { dns: 2, tcp: 8, tls: 14, ttfb: Math.max(1, latency - 10), download: 10, total: latency },
         });
       }
 
@@ -209,10 +216,17 @@ export const GoogleMeetTab: React.FC<GoogleMeetTabProps> = ({
           timestamp: new Date().toLocaleTimeString(),
           method: 'POST',
           url: endpoint,
-          statusCode: res.status,
-          latencyMs: latency,
+          protocol: 'HTTP/2.0',
+          requestHeaders: { Authorization: 'Bearer [HIDDEN]', 'Content-Type': 'application/json' },
+          requestBody: JSON.stringify(eventPayload),
+          responseStatus: res.status,
+          responseHeaders: { 'content-type': 'application/json' },
+          responseBody: '',
+          durationMs: latency,
           sizeBytes: JSON.stringify(eventPayload).length,
-          contentType: 'application/json',
+          clientIp: '127.0.0.1',
+          status: 'captured',
+          timingBreakdown: { dns: 2, tcp: 8, tls: 14, ttfb: Math.max(1, latency - 10), download: 10, total: latency },
         });
       }
 
@@ -273,13 +287,16 @@ export const GoogleMeetTab: React.FC<GoogleMeetTabProps> = ({
   const handleExportReqToReqable = (method: string, url: string, body?: any) => {
     if (onImportToReqable) {
       onImportToReqable({
+        id: `meet-req-${Date.now()}`,
         name: `Google Meet API: ${method} Event`,
-        method: method,
+        method: method as any,
         url: url,
         headers: [
-          { key: 'Authorization', value: 'Bearer {{oauth_access_token}}', enabled: true },
-          { key: 'Content-Type', value: 'application/json', enabled: true },
+          { id: 'h1', key: 'Authorization', value: 'Bearer {{oauth_access_token}}', enabled: true },
+          { id: 'h2', key: 'Content-Type', value: 'application/json', enabled: true },
         ],
+        params: [],
+        auth: { type: 'bearer', token: '{{oauth_access_token}}' },
         body: body ? JSON.stringify(body, null, 2) : '',
         bodyType: body ? 'json' : 'none',
       });

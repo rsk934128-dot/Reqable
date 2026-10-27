@@ -80,6 +80,7 @@ jobs:
         run: |
           npx cap sync android || echo "Capacitor sync fallback"
           mkdir -p android/app/src/main/assets/public
+          cp -r dist/* android/app/src/main/assets/
           cp -r dist/* android/app/src/main/assets/public/
 
       - name: 🔑 Make Gradlew Executable
