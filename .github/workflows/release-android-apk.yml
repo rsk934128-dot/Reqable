@@ -140,7 +140,7 @@ jobs:
 
             ### 🚀 Highlights
             - **App Package**: `com.reqable.android`
-            - **Target Platform**: Android 7.0+ (API Level 24 - 34+)
+            - **Target Platform**: Android 8.0+ (API Level 26 - 34+)
             - **Features Included**:
               - API Traffic Debugging & Interception
               - Full REST/GraphQL API Client

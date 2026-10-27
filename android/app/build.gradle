@@ -6,7 +6,7 @@ android {
 
     defaultConfig {
         applicationId "com.reqable.android"
-        minSdk 24
+        minSdk 26
         targetSdk 34
         versionCode 30222
         versionName "3.2.22"
